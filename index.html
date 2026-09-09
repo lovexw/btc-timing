@@ -1,0 +1,1228 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="比特币历史回测：最优择时操作 vs 全程持有不动的可视化对比" />
+<title>比特币最优择时 · 操作 vs 持有不动</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='88'%3E%E2%82%BF%3C/text%3E%3C/svg%3E" />
+<script>document.documentElement.classList.add('js');</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F7F7F3;
+    --surface:#FFFFFF;
+    --surface-2:#FAFAF7;
+    --ink:#16181D;
+    --ink-2:#3B404A;
+    --muted:#6E7480;
+    --faint:#9CA2AA;
+    --hairline:#E8E8E1;
+    --hairline-2:#E1E1D9;
+    --indigo:#2E3A8C;
+    --indigo-bright:#4C5BD4;
+    --indigo-soft:#E4E7F6;
+    --gold:#B8862B;
+    --gold-deep:#8A6414;
+    --gold-soft:#F3E7CB;
+    --green:#2F6E54;
+    --green-soft:#DFECE5;
+    --radius-lg:20px;
+    --radius-md:14px;
+    --shadow-1: 0 1px 2px rgba(22,24,29,.04), 0 8px 24px rgba(22,24,29,.05);
+    --shadow-2: 0 2px 8px rgba(22,24,29,.07), 0 20px 48px rgba(22,24,29,.10);
+    --sans:'Manrope','Noto Sans SC',-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;
+    --serif:'Noto Serif SC','Songti SC',Georgia,serif;
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  html{ scroll-behavior:smooth; }
+  body{
+    background:
+      radial-gradient(1100px 520px at 78% -8%, rgba(46,58,140,.055), transparent 62%),
+      radial-gradient(900px 460px at -6% 4%, rgba(184,134,43,.05), transparent 58%),
+      var(--bg);
+    color:var(--ink);
+    font-family:var(--sans);
+    font-size:15px;
+    line-height:1.7;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+  }
+  ::selection{ background:var(--indigo-soft); }
+  button{ font-family:var(--sans); }
+  button:focus-visible, input:focus-visible{ outline:2px solid var(--indigo); outline-offset:2px; border-radius:8px; }
+
+  .page{ max-width:1060px; margin:0 auto; padding:64px 32px 96px; }
+
+  /* ---------- Reveal on scroll ---------- */
+  html.js .reveal{ opacity:0; transform:translateY(14px); transition:opacity .65s cubic-bezier(.22,1,.36,1), transform .65s cubic-bezier(.22,1,.36,1); }
+  html.js .reveal.in{ opacity:1; transform:none; }
+
+  /* ---------- Hero ---------- */
+  .eyebrow{
+    font-size:13px; letter-spacing:.02em; color:var(--muted);
+    margin-bottom:20px; display:flex; align-items:center; gap:10px;
+  }
+  .eyebrow .dot{ width:6px; height:6px; border-radius:50%; background:var(--gold); display:inline-block; }
+
+  .hero h1{
+    font-family:var(--serif); font-weight:600;
+    font-size:clamp(31px, 4.6vw, 48px);
+    line-height:1.28; letter-spacing:.005em;
+    margin:0 0 26px; color:var(--ink);
+  }
+  .hero h1 .hl{ background:linear-gradient(180deg, transparent 70%, var(--gold-soft) 70%); padding:0 2px; }
+
+  .hero-range{ display:flex; align-items:center; gap:20px; flex-wrap:wrap; margin-bottom:16px; }
+  .hero-price{
+    font-family:var(--serif); font-weight:900;
+    font-size:clamp(36px, 5.4vw, 58px);
+    letter-spacing:-.01em; line-height:1.1;
+    font-variant-numeric:tabular-nums;
+  }
+  .hero-price.from{ color:var(--faint); font-weight:600; font-size:clamp(28px, 4vw, 42px); }
+  .hero-price.to{ color:var(--indigo); }
+  .hero-arrow{
+    width:42px; height:42px; border-radius:50%;
+    background:var(--surface); border:1px solid var(--hairline);
+    display:flex; align-items:center; justify-content:center;
+    color:var(--gold); font-size:19px; box-shadow:var(--shadow-1);
+  }
+  .hero-sub{ color:var(--muted); font-size:15px; max-width:62ch; }
+  .hero-sub strong{ color:var(--gold-deep); font-weight:700; }
+  .hero-sub .cagr{ color:var(--faint); font-size:13.5px; }
+
+  /* ---------- Cards & sections ---------- */
+  .card{
+    background:var(--surface); border:1px solid var(--hairline);
+    border-radius:var(--radius-lg); box-shadow:var(--shadow-1);
+  }
+  .section-eyebrow{
+    font-size:12px; font-weight:800; letter-spacing:.16em;
+    color:var(--gold); margin-bottom:10px;
+  }
+
+  /* ---------- Controls ---------- */
+  .controls{ margin-top:52px; padding:30px 30px 28px; }
+  .controls-grid{ display:grid; grid-template-columns:1fr; gap:26px; }
+  @media (min-width:920px){
+    .controls-grid{ grid-template-columns:1fr 1px 1.45fr; gap:34px; }
+    .control-divider{ display:block !important; }
+  }
+  .control-divider{ display:none; background:var(--hairline); width:1px; }
+
+  .controls-head{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:16px; flex-wrap:wrap; gap:6px; }
+  .controls-title{ font-size:15px; font-weight:700; color:var(--ink); display:flex; align-items:center; }
+  .controls-title .step{
+    font:800 11px var(--sans); letter-spacing:.1em; color:var(--gold);
+    margin-right:10px; transform:translateY(-1px);
+  }
+  .controls-hint{ font-size:12.5px; color:var(--faint); }
+
+  .chip-group{ display:flex; gap:8px; flex-wrap:wrap; }
+  .chip{
+    border:1px solid var(--hairline-2); background:var(--surface);
+    color:var(--ink-2); font-size:13.5px; font-weight:500;
+    padding:8px 15px; border-radius:999px; cursor:pointer;
+    transition:all .18s ease;
+  }
+  .chip:hover{ border-color:var(--indigo); color:var(--indigo); transform:translateY(-1px); }
+  .chip.active{ background:var(--ink); border-color:var(--ink); color:#fff; }
+  .chip.active:hover{ color:#fff; transform:none; }
+
+  .k-slider-row{ display:flex; align-items:center; gap:18px; margin-top:18px; }
+  input[type="range"]{
+    flex:1; -webkit-appearance:none; appearance:none;
+    height:5px; border-radius:3px; outline:none; cursor:pointer;
+    background:linear-gradient(90deg, var(--indigo) 0%, var(--indigo) 11%, var(--hairline-2) 11%, var(--hairline-2) 100%);
+  }
+  input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:19px; height:19px; border-radius:50%;
+    background:#fff; cursor:pointer; border:none;
+    box-shadow:0 0 0 2px var(--indigo), 0 2px 6px rgba(22,24,29,.2);
+    transition:transform .15s ease;
+  }
+  input[type="range"]::-webkit-slider-thumb:hover{ transform:scale(1.12); }
+  input[type="range"]::-moz-range-thumb{
+    width:19px; height:19px; border-radius:50%; background:#fff; cursor:pointer; border:none;
+    box-shadow:0 0 0 2px var(--indigo), 0 2px 6px rgba(22,24,29,.2);
+  }
+  .k-value{
+    font-family:var(--serif); font-weight:900; font-size:26px;
+    color:var(--indigo); min-width:74px; text-align:right;
+    font-variant-numeric:tabular-nums; line-height:1;
+  }
+  .k-value .unit{ font-family:var(--sans); font-size:13px; font-weight:500; color:var(--muted); margin-left:3px; }
+
+  /* ---------- Chart ---------- */
+  .chart-section{ margin-top:30px; padding:26px 22px 18px; }
+  .chart-head{
+    display:flex; justify-content:space-between; align-items:center;
+    gap:14px; flex-wrap:wrap; padding:0 8px;
+  }
+  .chart-title{ font-family:var(--serif); font-size:19px; font-weight:700; }
+  .chart-sub{ font-size:12.5px; color:var(--faint); margin-top:2px; }
+
+  .segmented{
+    display:inline-flex; background:var(--surface-2);
+    border:1px solid var(--hairline); border-radius:11px; padding:3px; gap:2px;
+  }
+  .segmented button{
+    border:0; background:transparent; padding:6px 14px; border-radius:8px;
+    font-size:12.5px; font-weight:600; color:var(--muted); cursor:pointer;
+    transition:all .18s ease; white-space:nowrap;
+  }
+  .segmented button:hover{ color:var(--ink); }
+  .segmented button.active{ background:#fff; color:var(--ink); box-shadow:0 1px 4px rgba(22,24,29,.12); }
+
+  .chart-legend{
+    display:flex; gap:20px; padding:14px 8px 4px; flex-wrap:wrap;
+    font-size:12.5px; color:var(--muted);
+  }
+  .chart-legend .item{ display:flex; align-items:center; gap:7px; }
+  .legend-mark{ width:11px; height:11px; border-radius:3.5px; display:inline-block; }
+  .legend-line{ width:16px; height:3px; border-radius:2px; display:inline-block; }
+  .legend-band{ width:14px; height:11px; border-radius:3px; display:inline-block; background:rgba(184,134,43,.16); border:1px solid rgba(184,134,43,.35); }
+
+  .chart-wrap{ position:relative; height:440px; margin-top:6px; }
+  .chart-wrap canvas{ width:100%; height:100%; display:block; cursor:crosshair; }
+  .chart-tooltip{
+    position:absolute; display:none; min-width:158px;
+    background:rgba(22,24,29,.94); color:#fff;
+    padding:10px 13px; border-radius:11px; font-size:12px;
+    pointer-events:none; z-index:5; white-space:nowrap;
+    box-shadow:0 10px 30px rgba(22,24,29,.3);
+    backdrop-filter:blur(4px);
+  }
+  .chart-tooltip .tt-date{ color:#B9BECB; font-size:11.5px; margin-bottom:4px; }
+  .chart-tooltip .tt-row{ display:flex; justify-content:space-between; gap:16px; margin-top:2px; }
+  .chart-tooltip .tt-row span{ color:#9AA0B2; }
+  .chart-tooltip .tt-row b{ font-weight:600; font-variant-numeric:tabular-nums; }
+
+  /* ---------- Compare: hold vs strategy ---------- */
+  .compare-section{ margin-top:30px; padding:30px 30px 26px; }
+  .compare-head{
+    display:flex; justify-content:space-between; align-items:flex-start;
+    gap:16px; flex-wrap:wrap; margin-bottom:2px;
+  }
+  .compare-head h2{
+    font-family:var(--serif); font-size:23px; font-weight:700;
+    margin:0; line-height:1.4;
+  }
+  .compare-meta{ font-size:12.5px; color:var(--faint); margin-top:4px; }
+
+  .compare-badge{
+    display:inline-flex; align-items:baseline; gap:8px;
+    background:linear-gradient(135deg, #F7EDD6, #EFDCAE);
+    border:1px solid #E5D0A0; color:var(--gold-deep);
+    padding:9px 18px; border-radius:999px;
+    font-size:13px; font-weight:600; white-space:nowrap;
+    box-shadow:var(--shadow-1);
+  }
+  .compare-badge b{ font-family:var(--serif); font-size:21px; font-weight:900; letter-spacing:-.01em; }
+
+  .compare-rows{ margin-top:14px; }
+  .compare-row{
+    display:grid; grid-template-columns:minmax(240px, 320px) 1fr;
+    gap:26px; align-items:center; padding:20px 4px;
+  }
+  .compare-row + .compare-row{ border-top:1px dashed var(--hairline-2); }
+  .compare-row.strat{
+    background:linear-gradient(135deg, rgba(46,58,140,.05), rgba(46,58,140,.012));
+    border:1px solid var(--indigo-soft); border-radius:var(--radius-md);
+    padding:20px 18px; margin-top:12px;
+  }
+  .compare-row.strat + .compare-row{ border-top:none; }
+
+  .row-tag{
+    display:inline-flex; align-items:center; gap:7px;
+    font-size:12px; font-weight:700; letter-spacing:.02em;
+    padding:4px 11px; border-radius:999px; margin-bottom:8px;
+  }
+  .row-tag::before{ content:''; width:6px; height:6px; border-radius:50%; }
+  .row-tag.hold-tag{ background:#EFEFF0; color:#5B616B; }
+  .row-tag.hold-tag::before{ background:#9CA2AA; }
+  .row-tag.strat-tag{ background:var(--indigo-soft); color:var(--indigo); }
+  .row-tag.strat-tag::before{ background:var(--indigo-bright); }
+
+  .row-note{ font-size:12.5px; color:var(--faint); margin-bottom:10px; }
+  .row-value{ display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
+  .row-num{
+    font-family:var(--serif); font-weight:900; font-size:clamp(26px, 3.2vw, 34px);
+    line-height:1.15; letter-spacing:-.01em; font-variant-numeric:tabular-nums;
+  }
+  .compare-row.strat .row-num{ color:var(--indigo); }
+  .row-mult{
+    font-size:12.5px; font-weight:700; color:var(--muted);
+    background:var(--surface-2); border:1px solid var(--hairline);
+    padding:2px 9px; border-radius:999px; font-variant-numeric:tabular-nums;
+  }
+  .row-sub{ font-size:12px; color:var(--faint); margin-top:7px; font-variant-numeric:tabular-nums; }
+
+  .bar-track{
+    height:16px; border-radius:8px; background:var(--surface-2);
+    border:1px solid var(--hairline); overflow:hidden; position:relative;
+  }
+  .bar{
+    height:100%; border-radius:8px; width:0%;
+    transition:width .8s cubic-bezier(.22,1,.36,1);
+  }
+  .bar.hold-bar{ background:linear-gradient(90deg, #C3C7CD, #9CA2AA); }
+  .bar.strat-bar{ background:linear-gradient(90deg, var(--indigo-bright), var(--indigo)); }
+
+  .compare-foot{
+    margin-top:18px; padding-top:16px; border-top:1px solid var(--hairline);
+    font-size:13px; color:var(--muted); line-height:1.75;
+  }
+  .compare-foot b{ color:var(--gold-deep); font-weight:700; }
+
+  /* ---------- Stats strip ---------- */
+  .stats-strip{
+    margin-top:22px; display:grid; grid-template-columns:repeat(4, 1fr);
+    gap:1px; background:var(--hairline); border:1px solid var(--hairline);
+    border-radius:var(--radius-lg); overflow:hidden; box-shadow:var(--shadow-1);
+  }
+  .stat-block{ background:var(--surface); padding:22px 22px 20px; }
+  .stat-label{ font-size:12.5px; color:var(--muted); margin-bottom:8px; font-weight:500; }
+  .stat-value{
+    font-family:var(--serif); font-weight:900; font-size:24px;
+    color:var(--ink); line-height:1.2; font-variant-numeric:tabular-nums;
+  }
+  .stat-value.gold{ color:var(--gold-deep); }
+  .stat-value.indigo{ color:var(--indigo); }
+  .stat-value.green{ color:var(--green); }
+  .stat-foot{ margin-top:6px; font-size:12px; color:var(--faint); line-height:1.55; }
+
+  /* ---------- Trades ---------- */
+  .trades-section{ margin-top:54px; }
+  .section-head{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:20px; flex-wrap:wrap; gap:8px; }
+  .section-head h2{ font-family:var(--serif); font-size:22px; font-weight:700; margin:0; }
+  .section-head .count{ font-size:13px; color:var(--faint); }
+
+  .trade-card{
+    display:grid; grid-template-columns:34px 1fr 28px 1fr 128px;
+    align-items:center; gap:18px; padding:19px 22px;
+    background:var(--surface); border:1px solid var(--hairline);
+    border-radius:var(--radius-md); margin-bottom:11px;
+    box-shadow:0 1px 2px rgba(22,24,29,.03);
+    transition:transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+  }
+  .trade-card:hover{
+    transform:translateY(-2px); box-shadow:var(--shadow-2);
+    border-color:var(--indigo-soft);
+  }
+  .trade-index{ font-family:var(--serif); font-weight:700; color:var(--faint); font-size:15px; }
+  .trade-side .tag{
+    font-size:11px; font-weight:700; letter-spacing:.05em;
+    padding:3px 9px; border-radius:999px; display:inline-block; margin-bottom:7px;
+  }
+  .tag.buy{ background:var(--green-soft); color:var(--green); }
+  .tag.sell{ background:var(--gold-soft); color:var(--gold-deep); }
+  .trade-side .date{ font-size:13.5px; color:var(--muted); }
+  .trade-side .price{
+    font-family:var(--serif); font-size:19px; font-weight:700; margin-top:2px;
+    font-variant-numeric:tabular-nums; letter-spacing:-.01em;
+  }
+  .trade-arrow{ color:var(--hairline-2); font-size:19px; text-align:center; }
+  .trade-gain{ text-align:right; }
+  .trade-gain .pct{
+    font-family:var(--serif); font-size:20px; font-weight:900; color:var(--green);
+    font-variant-numeric:tabular-nums; letter-spacing:-.01em;
+  }
+  .trade-gain .days{ font-size:11.5px; color:var(--faint); margin-top:3px; }
+
+  .empty-tip{ color:var(--muted); font-size:14px; padding:16px 4px; }
+
+  /* ---------- Footer ---------- */
+  footer.note{
+    margin-top:54px; padding-top:24px; border-top:1px solid var(--hairline);
+    font-size:12.5px; color:var(--faint); line-height:1.9;
+  }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width:960px){
+    .stats-strip{ grid-template-columns:repeat(2, 1fr); }
+    .compare-row{ grid-template-columns:1fr; gap:16px; }
+  }
+  @media (max-width:700px){
+    .page{ padding:40px 18px 64px; }
+    .controls{ padding:24px 20px; }
+    .compare-section{ padding:24px 18px; }
+    .stats-strip{ grid-template-columns:1fr 1fr; }
+    .trade-card{ grid-template-columns:1fr; gap:12px; }
+    .trade-arrow{ display:none; }
+    .trade-gain{ text-align:left; }
+    .chart-wrap{ height:330px; }
+    .hero-arrow{ width:34px; height:34px; font-size:16px; }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ transition:none !important; animation:none !important; }
+    html.js .reveal{ opacity:1; transform:none; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="eyebrow reveal"><span class="dot"></span><span id="eyebrowText">比特币每日价格 · 2017-01-01 至今</span></div>
+
+  <header class="hero reveal">
+    <h1>如果每一次都<span class="hl">精准</span>买在低点、卖在高点</h1>
+    <div class="hero-range">
+      <span class="hero-price from" id="heroFrom">$998</span>
+      <span class="hero-arrow">→</span>
+      <span class="hero-price to" id="heroTo">$79,943</span>
+    </div>
+    <div class="hero-sub" id="heroSub">2017-01-01 至 2026-09-06，价格上涨 <strong>79.1 倍</strong>。以下工具会在所选区间内寻找收益最优的买卖组合，并与「什么都不做」的结果对比。</div>
+  </header>
+
+  <section class="controls card reveal">
+    <div class="controls-grid">
+      <div class="control-block">
+        <div class="controls-head">
+          <div class="controls-title"><span class="step">01</span>选择起始时间</div>
+          <div class="controls-hint">从该年 1 月 1 日算起</div>
+        </div>
+        <div class="chip-group" id="yearChipGroup"></div>
+      </div>
+      <div class="control-divider"></div>
+      <div class="control-block">
+        <div class="controls-head">
+          <div class="controls-title"><span class="step">02</span>选择买卖次数</div>
+          <div class="controls-hint">在区间内寻找复利收益最高的买卖组合</div>
+        </div>
+        <div class="chip-group" id="chipGroup"></div>
+        <div class="k-slider-row">
+          <input type="range" id="kSlider" min="1" max="20" value="3" aria-label="买卖次数" />
+          <div class="k-value" id="kValueDisplay">3<span class="unit">次</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="chart-section card reveal">
+    <div class="chart-head">
+      <div>
+        <div class="chart-title" id="chartTitle">价格走势</div>
+        <div class="chart-sub" id="chartSub">纵轴为对数坐标，可切换为线性</div>
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <div class="segmented" id="modeToggle" role="tablist">
+          <button data-mode="price" class="active">价格走势</button>
+          <button data-mode="capital">资金曲线对比</button>
+        </div>
+        <div class="segmented" id="scaleToggle" role="tablist">
+          <button data-scale="log" class="active">对数</button>
+          <button data-scale="linear">线性</button>
+        </div>
+      </div>
+    </div>
+    <div class="chart-legend" id="chartLegend"></div>
+    <div class="chart-wrap">
+      <canvas id="priceChart"></canvas>
+      <div class="chart-tooltip" id="chartTooltip"></div>
+    </div>
+  </section>
+
+  <section class="compare-section card reveal">
+    <div class="compare-head">
+      <div>
+        <div class="section-eyebrow">结果对比</div>
+        <h2>同样 $10,000 本金，两种做法的差别</h2>
+        <div class="compare-meta" id="compareMeta"></div>
+      </div>
+      <div class="compare-badge" id="compareBadge"></div>
+    </div>
+    <div class="compare-rows">
+      <div class="compare-row">
+        <div class="row-info">
+          <div class="row-tag hold-tag">全程持有不动</div>
+          <div class="row-note">第一天买入，此后再也不看盘、不操作</div>
+          <div class="row-value">
+            <span class="row-num" id="holdValue">$0</span>
+            <span class="row-mult" id="holdMult">1.0×</span>
+          </div>
+          <div class="row-sub" id="holdSub"></div>
+        </div>
+        <div class="bar-track"><div class="bar hold-bar" id="holdBar"></div></div>
+      </div>
+      <div class="compare-row strat">
+        <div class="row-info">
+          <div class="row-tag strat-tag">最优择时操作</div>
+          <div class="row-note" id="stratNote"></div>
+          <div class="row-value">
+            <span class="row-num" id="stratValue">$0</span>
+            <span class="row-mult" id="stratMult">1.0×</span>
+          </div>
+          <div class="row-sub" id="stratSub"></div>
+        </div>
+        <div class="bar-track"><div class="bar strat-bar" id="stratBar"></div></div>
+      </div>
+    </div>
+    <div class="compare-foot" id="compareFoot"></div>
+  </section>
+
+  <section class="stats-strip reveal" id="statsStrip"></section>
+
+  <section class="trades-section reveal">
+    <div class="section-head">
+      <div>
+        <div class="section-eyebrow">交易明细</div>
+        <h2>每一笔买卖</h2>
+      </div>
+      <div class="count" id="tradesCount"></div>
+    </div>
+    <div id="tradesList"></div>
+  </section>
+
+  <footer class="note reveal">
+    数据来源为用户提供的比特币历史日价格（2013-04-28 至今），本页仅使用所选年份之后的数据。策略假设：初始资金 $10,000 全部投入、不可分批买入，每次卖出后资金再全部投入下一次买入（复利），空仓期间资金不产生收益；算法在该复利假设下寻找历史回测收益最高的买卖组合，为理论最优解，不代表未来收益，也不构成投资建议。「全程持有不动」指区间第一天买入并持有至最后一天。
+  </footer>
+
+</div>
+
+<script>
+const FULL_DATES = ["2017-01-01","2017-01-02","2017-01-03","2017-01-04","2017-01-05","2017-01-06","2017-01-07","2017-01-08","2017-01-09","2017-01-10","2017-01-11","2017-01-12","2017-01-13","2017-01-14","2017-01-15","2017-01-16","2017-01-17","2017-01-18","2017-01-19","2017-01-20","2017-01-21","2017-01-22","2017-01-23","2017-01-24","2017-01-25","2017-01-26","2017-01-27","2017-01-28","2017-01-29","2017-01-30","2017-01-31","2017-02-01","2017-02-02","2017-02-03","2017-02-04","2017-02-05","2017-02-06","2017-02-07","2017-02-08","2017-02-09","2017-02-10","2017-02-11","2017-02-12","2017-02-13","2017-02-14","2017-02-15","2017-02-16","2017-02-17","2017-02-18","2017-02-19","2017-02-20","2017-02-21","2017-02-22","2017-02-23","2017-02-24","2017-02-25","2017-02-26","2017-02-27","2017-02-28","2017-03-01","2017-03-02","2017-03-03","2017-03-04","2017-03-05","2017-03-06","2017-03-07","2017-03-08","2017-03-09","2017-03-10","2017-03-11","2017-03-12","2017-03-13","2017-03-14","2017-03-15","2017-03-16","2017-03-17","2017-03-18","2017-03-19","2017-03-20","2017-03-21","2017-03-22","2017-03-23","2017-03-24","2017-03-25","2017-03-26","2017-03-27","2017-03-28","2017-03-29","2017-03-30","2017-03-31","2017-04-01","2017-04-02","2017-04-03","2017-04-04","2017-04-05","2017-04-06","2017-04-07","2017-04-08","2017-04-09","2017-04-10","2017-04-11","2017-04-12","2017-04-13","2017-04-14","2017-04-15","2017-04-16","2017-04-17","2017-04-18","2017-04-19","2017-04-20","2017-04-21","2017-04-22","2017-04-23","2017-04-24","2017-04-25","2017-04-26","2017-04-27","2017-04-28","2017-04-29","2017-04-30","2017-05-01","2017-05-02","2017-05-03","2017-05-04","2017-05-05","2017-05-06","2017-05-07","2017-05-08","2017-05-09","2017-05-10","2017-05-11","2017-05-12","2017-05-13","2017-05-14","2017-05-15","2017-05-16","2017-05-17","2017-05-18","2017-05-19","2017-05-20","2017-05-21","2017-05-22","2017-05-23","2017-05-24","2017-05-25","2017-05-26","2017-05-27","2017-05-28","2017-05-29","2017-05-30","2017-05-31","2017-06-01","2017-06-02","2017-06-03","2017-06-04","2017-06-05","2017-06-06","2017-06-07","2017-06-08","2017-06-09","2017-06-10","2017-06-11","2017-06-12","2017-06-13","2017-06-14","2017-06-15","2017-06-16","2017-06-17","2017-06-18","2017-06-19","2017-06-20","2017-06-21","2017-06-22","2017-06-23","2017-06-24","2017-06-25","2017-06-26","2017-06-27","2017-06-28","2017-06-29","2017-06-30","2017-07-01","2017-07-02","2017-07-03","2017-07-04","2017-07-05","2017-07-06","2017-07-07","2017-07-08","2017-07-09","2017-07-10","2017-07-11","2017-07-12","2017-07-13","2017-07-14","2017-07-15","2017-07-16","2017-07-17","2017-07-18","2017-07-19","2017-07-20","2017-07-21","2017-07-22","2017-07-23","2017-07-24","2017-07-25","2017-07-26","2017-07-27","2017-07-28","2017-07-29","2017-07-30","2017-07-31","2017-08-01","2017-08-02","2017-08-03","2017-08-04","2017-08-05","2017-08-06","2017-08-07","2017-08-08","2017-08-09","2017-08-10","2017-08-11","2017-08-12","2017-08-13","2017-08-14","2017-08-15","2017-08-16","2017-08-17","2017-08-18","2017-08-19","2017-08-20","2017-08-21","2017-08-22","2017-08-23","2017-08-24","2017-08-25","2017-08-26","2017-08-27","2017-08-28","2017-08-29","2017-08-30","2017-08-31","2017-09-01","2017-09-02","2017-09-03","2017-09-04","2017-09-05","2017-09-06","2017-09-07","2017-09-08","2017-09-09","2017-09-10","2017-09-11","2017-09-12","2017-09-13","2017-09-14","2017-09-15","2017-09-16","2017-09-17","2017-09-18","2017-09-19","2017-09-20","2017-09-21","2017-09-22","2017-09-23","2017-09-24","2017-09-25","2017-09-26","2017-09-27","2017-09-28","2017-09-29","2017-09-30","2017-10-01","2017-10-02","2017-10-03","2017-10-04","2017-10-05","2017-10-06","2017-10-07","2017-10-08","2017-10-09","2017-10-10","2017-10-11","2017-10-12","2017-10-13","2017-10-14","2017-10-15","2017-10-16","2017-10-17","2017-10-18","2017-10-19","2017-10-20","2017-10-21","2017-10-22","2017-10-23","2017-10-24","2017-10-25","2017-10-26","2017-10-27","2017-10-28","2017-10-29","2017-10-30","2017-10-31","2017-11-01","2017-11-02","2017-11-03","2017-11-04","2017-11-05","2017-11-06","2017-11-07","2017-11-08","2017-11-09","2017-11-10","2017-11-11","2017-11-12","2017-11-13","2017-11-14","2017-11-15","2017-11-16","2017-11-17","2017-11-18","2017-11-19","2017-11-20","2017-11-21","2017-11-22","2017-11-23","2017-11-24","2017-11-25","2017-11-26","2017-11-27","2017-11-28","2017-11-29","2017-11-30","2017-12-01","2017-12-02","2017-12-03","2017-12-04","2017-12-05","2017-12-06","2017-12-07","2017-12-08","2017-12-09","2017-12-10","2017-12-11","2017-12-12","2017-12-13","2017-12-14","2017-12-15","2017-12-16","2017-12-17","2017-12-18","2017-12-19","2017-12-20","2017-12-21","2017-12-22","2017-12-23","2017-12-24","2017-12-25","2017-12-26","2017-12-27","2017-12-28","2017-12-29","2017-12-30","2017-12-31","2018-01-01","2018-01-02","2018-01-03","2018-01-04","2018-01-05","2018-01-06","2018-01-07","2018-01-08","2018-01-09","2018-01-10","2018-01-11","2018-01-12","2018-01-13","2018-01-14","2018-01-15","2018-01-16","2018-01-17","2018-01-18","2018-01-19","2018-01-20","2018-01-21","2018-01-22","2018-01-23","2018-01-24","2018-01-25","2018-01-26","2018-01-27","2018-01-28","2018-01-29","2018-01-30","2018-01-31","2018-02-01","2018-02-02","2018-02-03","2018-02-04","2018-02-05","2018-02-06","2018-02-07","2018-02-08","2018-02-09","2018-02-10","2018-02-11","2018-02-12","2018-02-13","2018-02-14","2018-02-15","2018-02-16","2018-02-17","2018-02-18","2018-02-19","2018-02-20","2018-02-21","2018-02-22","2018-02-23","2018-02-24","2018-02-25","2018-02-26","2018-02-27","2018-02-28","2018-03-01","2018-03-02","2018-03-03","2018-03-04","2018-03-05","2018-03-06","2018-03-07","2018-03-08","2018-03-09","2018-03-10","2018-03-11","2018-03-12","2018-03-13","2018-03-14","2018-03-15","2018-03-16","2018-03-17","2018-03-18","2018-03-19","2018-03-20","2018-03-21","2018-03-22","2018-03-23","2018-03-24","2018-03-25","2018-03-26","2018-03-27","2018-03-28","2018-03-29","2018-03-30","2018-03-31","2018-04-01","2018-04-02","2018-04-03","2018-04-04","2018-04-05","2018-04-06","2018-04-07","2018-04-08","2018-04-09","2018-04-10","2018-04-11","2018-04-12","2018-04-13","2018-04-14","2018-04-15","2018-04-16","2018-04-17","2018-04-18","2018-04-19","2018-04-20","2018-04-21","2018-04-22","2018-04-23","2018-04-24","2018-04-25","2018-04-26","2018-04-27","2018-04-28","2018-04-29","2018-04-30","2018-05-01","2018-05-02","2018-05-03","2018-05-04","2018-05-05","2018-05-06","2018-05-07","2018-05-08","2018-05-09","2018-05-10","2018-05-11","2018-05-12","2018-05-13","2018-05-14","2018-05-15","2018-05-16","2018-05-17","2018-05-18","2018-05-19","2018-05-20","2018-05-21","2018-05-22","2018-05-23","2018-05-24","2018-05-25","2018-05-26","2018-05-27","2018-05-28","2018-05-29","2018-05-30","2018-05-31","2018-06-01","2018-06-02","2018-06-03","2018-06-04","2018-06-05","2018-06-06","2018-06-07","2018-06-08","2018-06-09","2018-06-10","2018-06-11","2018-06-12","2018-06-13","2018-06-14","2018-06-15","2018-06-16","2018-06-17","2018-06-18","2018-06-19","2018-06-20","2018-06-21","2018-06-22","2018-06-23","2018-06-24","2018-06-25","2018-06-26","2018-06-27","2018-06-28","2018-06-29","2018-06-30","2018-07-01","2018-07-02","2018-07-03","2018-07-04","2018-07-05","2018-07-06","2018-07-07","2018-07-08","2018-07-09","2018-07-10","2018-07-11","2018-07-12","2018-07-13","2018-07-14","2018-07-15","2018-07-16","2018-07-17","2018-07-18","2018-07-19","2018-07-20","2018-07-21","2018-07-22","2018-07-23","2018-07-24","2018-07-25","2018-07-26","2018-07-27","2018-07-28","2018-07-29","2018-07-30","2018-07-31","2018-08-01","2018-08-02","2018-08-03","2018-08-04","2018-08-05","2018-08-06","2018-08-07","2018-08-08","2018-08-09","2018-08-10","2018-08-11","2018-08-12","2018-08-13","2018-08-14","2018-08-15","2018-08-16","2018-08-17","2018-08-18","2018-08-19","2018-08-20","2018-08-21","2018-08-22","2018-08-23","2018-08-24","2018-08-25","2018-08-26","2018-08-27","2018-08-28","2018-08-29","2018-08-30","2018-08-31","2018-09-01","2018-09-02","2018-09-03","2018-09-04","2018-09-05","2018-09-06","2018-09-07","2018-09-08","2018-09-09","2018-09-10","2018-09-11","2018-09-12","2018-09-13","2018-09-14","2018-09-15","2018-09-16","2018-09-17","2018-09-18","2018-09-19","2018-09-20","2018-09-21","2018-09-22","2018-09-23","2018-09-24","2018-09-25","2018-09-26","2018-09-27","2018-09-28","2018-09-29","2018-09-30","2018-10-01","2018-10-02","2018-10-03","2018-10-04","2018-10-05","2018-10-06","2018-10-07","2018-10-08","2018-10-09","2018-10-10","2018-10-11","2018-10-12","2018-10-13","2018-10-14","2018-10-15","2018-10-16","2018-10-17","2018-10-18","2018-10-19","2018-10-20","2018-10-21","2018-10-22","2018-10-23","2018-10-24","2018-10-25","2018-10-26","2018-10-27","2018-10-28","2018-10-29","2018-10-30","2018-10-31","2018-11-01","2018-11-02","2018-11-03","2018-11-04","2018-11-05","2018-11-06","2018-11-07","2018-11-08","2018-11-09","2018-11-10","2018-11-11","2018-11-12","2018-11-13","2018-11-14","2018-11-15","2018-11-16","2018-11-17","2018-11-18","2018-11-19","2018-11-20","2018-11-21","2018-11-22","2018-11-23","2018-11-24","2018-11-25","2018-11-26","2018-11-27","2018-11-28","2018-11-29","2018-11-30","2018-12-01","2018-12-02","2018-12-03","2018-12-04","2018-12-05","2018-12-06","2018-12-07","2018-12-08","2018-12-09","2018-12-10","2018-12-11","2018-12-12","2018-12-13","2018-12-14","2018-12-15","2018-12-16","2018-12-17","2018-12-18","2018-12-19","2018-12-20","2018-12-21","2018-12-22","2018-12-23","2018-12-24","2018-12-25","2018-12-26","2018-12-27","2018-12-28","2018-12-29","2018-12-30","2018-12-31","2019-01-01","2019-01-02","2019-01-03","2019-01-04","2019-01-05","2019-01-06","2019-01-07","2019-01-08","2019-01-09","2019-01-10","2019-01-11","2019-01-12","2019-01-13","2019-01-14","2019-01-15","2019-01-16","2019-01-17","2019-01-18","2019-01-19","2019-01-20","2019-01-21","2019-01-22","2019-01-23","2019-01-24","2019-01-25","2019-01-26","2019-01-27","2019-01-28","2019-01-29","2019-01-30","2019-01-31","2019-02-01","2019-02-02","2019-02-03","2019-02-04","2019-02-05","2019-02-06","2019-02-07","2019-02-08","2019-02-09","2019-02-10","2019-02-11","2019-02-12","2019-02-13","2019-02-14","2019-02-15","2019-02-16","2019-02-17","2019-02-18","2019-02-19","2019-02-20","2019-02-21","2019-02-22","2019-02-23","2019-02-24","2019-02-25","2019-02-26","2019-02-27","2019-02-28","2019-03-01","2019-03-02","2019-03-03","2019-03-04","2019-03-05","2019-03-06","2019-03-07","2019-03-08","2019-03-09","2019-03-10","2019-03-11","2019-03-12","2019-03-13","2019-03-14","2019-03-15","2019-03-16","2019-03-17","2019-03-18","2019-03-19","2019-03-20","2019-03-21","2019-03-22","2019-03-23","2019-03-24","2019-03-25","2019-03-26","2019-03-27","2019-03-28","2019-03-29","2019-03-30","2019-03-31","2019-04-01","2019-04-02","2019-04-03","2019-04-04","2019-04-05","2019-04-06","2019-04-07","2019-04-08","2019-04-09","2019-04-10","2019-04-11","2019-04-12","2019-04-13","2019-04-14","2019-04-15","2019-04-16","2019-04-17","2019-04-18","2019-04-19","2019-04-20","2019-04-21","2019-04-22","2019-04-23","2019-04-24","2019-04-25","2019-04-26","2019-04-27","2019-04-28","2019-04-29","2019-04-30","2019-05-01","2019-05-02","2019-05-03","2019-05-04","2019-05-05","2019-05-06","2019-05-07","2019-05-08","2019-05-09","2019-05-10","2019-05-11","2019-05-12","2019-05-13","2019-05-14","2019-05-15","2019-05-16","2019-05-17","2019-05-18","2019-05-19","2019-05-20","2019-05-21","2019-05-22","2019-05-23","2019-05-24","2019-05-25","2019-05-26","2019-05-27","2019-05-28","2019-05-29","2019-05-30","2019-05-31","2019-06-01","2019-06-02","2019-06-03","2019-06-04","2019-06-05","2019-06-06","2019-06-07","2019-06-08","2019-06-09","2019-06-10","2019-06-11","2019-06-12","2019-06-13","2019-06-14","2019-06-15","2019-06-16","2019-06-17","2019-06-18","2019-06-19","2019-06-20","2019-06-21","2019-06-22","2019-06-23","2019-06-24","2019-06-25","2019-06-26","2019-06-27","2019-06-28","2019-06-29","2019-06-30","2019-07-01","2019-07-02","2019-07-03","2019-07-04","2019-07-05","2019-07-06","2019-07-07","2019-07-08","2019-07-09","2019-07-10","2019-07-11","2019-07-12","2019-07-13","2019-07-14","2019-07-15","2019-07-16","2019-07-17","2019-07-18","2019-07-19","2019-07-20","2019-07-21","2019-07-22","2019-07-23","2019-07-24","2019-07-25","2019-07-26","2019-07-27","2019-07-28","2019-07-29","2019-07-30","2019-07-31","2019-08-01","2019-08-02","2019-08-03","2019-08-04","2019-08-05","2019-08-06","2019-08-07","2019-08-08","2019-08-09","2019-08-10","2019-08-11","2019-08-12","2019-08-13","2019-08-14","2019-08-15","2019-08-16","2019-08-17","2019-08-18","2019-08-19","2019-08-20","2019-08-21","2019-08-22","2019-08-23","2019-08-24","2019-08-25","2019-08-26","2019-08-27","2019-08-28","2019-08-29","2019-08-30","2019-08-31","2019-09-01","2019-09-02","2019-09-03","2019-09-04","2019-09-05","2019-09-06","2019-09-07","2019-09-08","2019-09-09","2019-09-10","2019-09-11","2019-09-12","2019-09-13","2019-09-14","2019-09-15","2019-09-16","2019-09-17","2019-09-18","2019-09-19","2019-09-20","2019-09-21","2019-09-22","2019-09-23","2019-09-24","2019-09-25","2019-09-26","2019-09-27","2019-09-28","2019-09-29","2019-09-30","2019-10-01","2019-10-02","2019-10-03","2019-10-04","2019-10-05","2019-10-06","2019-10-07","2019-10-08","2019-10-09","2019-10-10","2019-10-11","2019-10-12","2019-10-13","2019-10-14","2019-10-15","2019-10-16","2019-10-17","2019-10-18","2019-10-19","2019-10-20","2019-10-21","2019-10-22","2019-10-23","2019-10-24","2019-10-25","2019-10-26","2019-10-27","2019-10-28","2019-10-29","2019-10-30","2019-10-31","2019-11-01","2019-11-02","2019-11-03","2019-11-04","2019-11-05","2019-11-06","2019-11-07","2019-11-08","2019-11-09","2019-11-10","2019-11-11","2019-11-12","2019-11-13","2019-11-14","2019-11-15","2019-11-16","2019-11-17","2019-11-18","2019-11-19","2019-11-20","2019-11-21","2019-11-22","2019-11-23","2019-11-24","2019-11-25","2019-11-26","2019-11-27","2019-11-28","2019-11-29","2019-11-30","2019-12-01","2019-12-02","2019-12-03","2019-12-04","2019-12-05","2019-12-06","2019-12-07","2019-12-08","2019-12-09","2019-12-10","2019-12-11","2019-12-12","2019-12-13","2019-12-14","2019-12-15","2019-12-16","2019-12-17","2019-12-18","2019-12-19","2019-12-20","2019-12-21","2019-12-22","2019-12-23","2019-12-24","2019-12-25","2019-12-26","2019-12-27","2019-12-28","2019-12-29","2019-12-30","2019-12-31","2020-01-01","2020-01-02","2020-01-03","2020-01-04","2020-01-05","2020-01-06","2020-01-07","2020-01-08","2020-01-09","2020-01-10","2020-01-11","2020-01-12","2020-01-13","2020-01-14","2020-01-15","2020-01-16","2020-01-17","2020-01-18","2020-01-19","2020-01-20","2020-01-21","2020-01-22","2020-01-23","2020-01-24","2020-01-25","2020-01-26","2020-01-27","2020-01-28","2020-01-29","2020-01-30","2020-01-31","2020-02-01","2020-02-02","2020-02-03","2020-02-04","2020-02-05","2020-02-06","2020-02-07","2020-02-08","2020-02-09","2020-02-10","2020-02-11","2020-02-12","2020-02-13","2020-02-14","2020-02-15","2020-02-16","2020-02-17","2020-02-18","2020-02-19","2020-02-20","2020-02-21","2020-02-22","2020-02-23","2020-02-24","2020-02-25","2020-02-26","2020-02-27","2020-02-28","2020-02-29","2020-03-01","2020-03-02","2020-03-03","2020-03-04","2020-03-05","2020-03-06","2020-03-07","2020-03-08","2020-03-09","2020-03-10","2020-03-11","2020-03-12","2020-03-13","2020-03-14","2020-03-15","2020-03-16","2020-03-17","2020-03-18","2020-03-19","2020-03-20","2020-03-21","2020-03-22","2020-03-23","2020-03-24","2020-03-25","2020-03-26","2020-03-27","2020-03-28","2020-03-29","2020-03-30","2020-03-31","2020-04-01","2020-04-02","2020-04-03","2020-04-04","2020-04-05","2020-04-06","2020-04-07","2020-04-08","2020-04-09","2020-04-10","2020-04-11","2020-04-12","2020-04-13","2020-04-14","2020-04-15","2020-04-16","2020-04-17","2020-04-18","2020-04-19","2020-04-20","2020-04-21","2020-04-22","2020-04-23","2020-04-24","2020-04-25","2020-04-26","2020-04-27","2020-04-28","2020-04-29","2020-04-30","2020-05-01","2020-05-02","2020-05-03","2020-05-04","2020-05-05","2020-05-06","2020-05-07","2020-05-08","2020-05-09","2020-05-10","2020-05-11","2020-05-12","2020-05-13","2020-05-14","2020-05-15","2020-05-16","2020-05-17","2020-05-18","2020-05-19","2020-05-20","2020-05-21","2020-05-22","2020-05-23","2020-05-24","2020-05-25","2020-05-26","2020-05-27","2020-05-28","2020-05-29","2020-05-30","2020-05-31","2020-06-01","2020-06-02","2020-06-03","2020-06-04","2020-06-05","2020-06-06","2020-06-07","2020-06-08","2020-06-09","2020-06-10","2020-06-11","2020-06-12","2020-06-13","2020-06-14","2020-06-15","2020-06-16","2020-06-17","2020-06-18","2020-06-19","2020-06-20","2020-06-21","2020-06-22","2020-06-23","2020-06-24","2020-06-25","2020-06-26","2020-06-27","2020-06-28","2020-06-29","2020-06-30","2020-07-01","2020-07-02","2020-07-03","2020-07-04","2020-07-05","2020-07-06","2020-07-07","2020-07-08","2020-07-09","2020-07-10","2020-07-11","2020-07-12","2020-07-13","2020-07-14","2020-07-15","2020-07-16","2020-07-17","2020-07-18","2020-07-19","2020-07-20","2020-07-21","2020-07-22","2020-07-23","2020-07-24","2020-07-25","2020-07-26","2020-07-27","2020-07-28","2020-07-29","2020-07-30","2020-07-31","2020-08-01","2020-08-02","2020-08-03","2020-08-04","2020-08-05","2020-08-06","2020-08-07","2020-08-08","2020-08-09","2020-08-10","2020-08-11","2020-08-12","2020-08-13","2020-08-14","2020-08-15","2020-08-16","2020-08-17","2020-08-18","2020-08-19","2020-08-20","2020-08-21","2020-08-22","2020-08-23","2020-08-24","2020-08-25","2020-08-26","2020-08-27","2020-08-28","2020-08-29","2020-08-30","2020-08-31","2020-09-01","2020-09-02","2020-09-03","2020-09-04","2020-09-05","2020-09-06","2020-09-07","2020-09-08","2020-09-09","2020-09-10","2020-09-11","2020-09-12","2020-09-13","2020-09-14","2020-09-15","2020-09-16","2020-09-17","2020-09-18","2020-09-19","2020-09-20","2020-09-21","2020-09-22","2020-09-23","2020-09-24","2020-09-25","2020-09-26","2020-09-27","2020-09-28","2020-09-29","2020-09-30","2020-10-01","2020-10-02","2020-10-03","2020-10-04","2020-10-05","2020-10-06","2020-10-07","2020-10-08","2020-10-09","2020-10-10","2020-10-11","2020-10-12","2020-10-13","2020-10-14","2020-10-15","2020-10-16","2020-10-17","2020-10-18","2020-10-19","2020-10-20","2020-10-21","2020-10-22","2020-10-23","2020-10-24","2020-10-25","2020-10-26","2020-10-27","2020-10-28","2020-10-29","2020-10-30","2020-10-31","2020-11-01","2020-11-02","2020-11-03","2020-11-04","2020-11-05","2020-11-06","2020-11-07","2020-11-08","2020-11-09","2020-11-10","2020-11-11","2020-11-12","2020-11-13","2020-11-14","2020-11-15","2020-11-16","2020-11-17","2020-11-18","2020-11-19","2020-11-20","2020-11-21","2020-11-22","2020-11-23","2020-11-24","2020-11-25","2020-11-26","2020-11-27","2020-11-28","2020-11-29","2020-11-30","2020-12-01","2020-12-02","2020-12-03","2020-12-04","2020-12-05","2020-12-06","2020-12-07","2020-12-08","2020-12-09","2020-12-10","2020-12-11","2020-12-12","2020-12-13","2020-12-14","2020-12-15","2020-12-16","2020-12-17","2020-12-18","2020-12-19","2020-12-20","2020-12-21","2020-12-22","2020-12-23","2020-12-24","2020-12-25","2020-12-26","2020-12-27","2020-12-28","2020-12-29","2020-12-30","2020-12-31","2021-01-01","2021-01-02","2021-01-03","2021-01-04","2021-01-05","2021-01-06","2021-01-07","2021-01-08","2021-01-09","2021-01-10","2021-01-11","2021-01-12","2021-01-13","2021-01-14","2021-01-15","2021-01-16","2021-01-17","2021-01-18","2021-01-19","2021-01-20","2021-01-21","2021-01-22","2021-01-23","2021-01-24","2021-01-25","2021-01-26","2021-01-27","2021-01-28","2021-01-29","2021-01-30","2021-01-31","2021-02-01","2021-02-02","2021-02-03","2021-02-04","2021-02-05","2021-02-06","2021-02-07","2021-02-08","2021-02-09","2021-02-10","2021-02-11","2021-02-12","2021-02-13","2021-02-14","2021-02-15","2021-02-16","2021-02-17","2021-02-18","2021-02-19","2021-02-20","2021-02-21","2021-02-22","2021-02-23","2021-02-24","2021-02-25","2021-02-26","2021-02-27","2021-02-28","2021-03-01","2021-03-02","2021-03-03","2021-03-04","2021-03-05","2021-03-06","2021-03-07","2021-03-08","2021-03-09","2021-03-10","2021-03-11","2021-03-12","2021-03-13","2021-03-14","2021-03-15","2021-03-16","2021-03-17","2021-03-18","2021-03-19","2021-03-20","2021-03-21","2021-03-22","2021-03-23","2021-03-24","2021-03-25","2021-03-26","2021-03-27","2021-03-28","2021-03-29","2021-03-30","2021-03-31","2021-04-01","2021-04-02","2021-04-03","2021-04-04","2021-04-05","2021-04-06","2021-04-07","2021-04-08","2021-04-09","2021-04-10","2021-04-11","2021-04-12","2021-04-13","2021-04-14","2021-04-15","2021-04-16","2021-04-17","2021-04-18","2021-04-19","2021-04-20","2021-04-21","2021-04-22","2021-04-23","2021-04-24","2021-04-25","2021-04-26","2021-04-27","2021-04-28","2021-04-29","2021-04-30","2021-05-01","2021-05-02","2021-05-03","2021-05-04","2021-05-05","2021-05-06","2021-05-07","2021-05-08","2021-05-09","2021-05-10","2021-05-11","2021-05-12","2021-05-13","2021-05-14","2021-05-15","2021-05-16","2021-05-17","2021-05-18","2021-05-19","2021-05-20","2021-05-21","2021-05-22","2021-05-23","2021-05-24","2021-05-25","2021-05-26","2021-05-27","2021-05-28","2021-05-29","2021-05-30","2021-05-31","2021-06-01","2021-06-02","2021-06-03","2021-06-04","2021-06-05","2021-06-06","2021-06-07","2021-06-08","2021-06-09","2021-06-10","2021-06-11","2021-06-12","2021-06-13","2021-06-14","2021-06-15","2021-06-16","2021-06-17","2021-06-18","2021-06-19","2021-06-20","2021-06-21","2021-06-22","2021-06-23","2021-06-24","2021-06-25","2021-06-26","2021-06-27","2021-06-28","2021-06-29","2021-06-30","2021-07-01","2021-07-02","2021-07-03","2021-07-04","2021-07-05","2021-07-06","2021-07-07","2021-07-08","2021-07-09","2021-07-10","2021-07-11","2021-07-12","2021-07-13","2021-07-14","2021-07-15","2021-07-16","2021-07-17","2021-07-18","2021-07-19","2021-07-20","2021-07-21","2021-07-22","2021-07-23","2021-07-24","2021-07-25","2021-07-26","2021-07-27","2021-07-28","2021-07-29","2021-07-30","2021-07-31","2021-08-01","2021-08-02","2021-08-03","2021-08-04","2021-08-05","2021-08-06","2021-08-07","2021-08-08","2021-08-09","2021-08-10","2021-08-11","2021-08-12","2021-08-13","2021-08-14","2021-08-15","2021-08-16","2021-08-17","2021-08-18","2021-08-19","2021-08-20","2021-08-21","2021-08-22","2021-08-23","2021-08-24","2021-08-25","2021-08-26","2021-08-27","2021-08-28","2021-08-29","2021-08-30","2021-08-31","2021-09-01","2021-09-02","2021-09-03","2021-09-04","2021-09-05","2021-09-06","2021-09-07","2021-09-08","2021-09-09","2021-09-10","2021-09-11","2021-09-12","2021-09-13","2021-09-14","2021-09-15","2021-09-16","2021-09-17","2021-09-18","2021-09-19","2021-09-20","2021-09-21","2021-09-22","2021-09-23","2021-09-24","2021-09-25","2021-09-26","2021-09-27","2021-09-28","2021-09-29","2021-09-30","2021-10-01","2021-10-02","2021-10-03","2021-10-04","2021-10-05","2021-10-06","2021-10-07","2021-10-08","2021-10-09","2021-10-10","2021-10-11","2021-10-12","2021-10-13","2021-10-14","2021-10-15","2021-10-16","2021-10-17","2021-10-18","2021-10-19","2021-10-20","2021-10-21","2021-10-22","2021-10-23","2021-10-24","2021-10-25","2021-10-26","2021-10-27","2021-10-28","2021-10-29","2021-10-30","2021-10-31","2021-11-01","2021-11-02","2021-11-03","2021-11-04","2021-11-05","2021-11-06","2021-11-07","2021-11-08","2021-11-09","2021-11-10","2021-11-11","2021-11-12","2021-11-13","2021-11-14","2021-11-15","2021-11-16","2021-11-17","2021-11-18","2021-11-19","2021-11-20","2021-11-21","2021-11-22","2021-11-23","2021-11-24","2021-11-25","2021-11-26","2021-11-27","2021-11-28","2021-11-29","2021-11-30","2021-12-01","2021-12-02","2021-12-03","2021-12-04","2021-12-05","2021-12-06","2021-12-07","2021-12-08","2021-12-09","2021-12-10","2021-12-11","2021-12-12","2021-12-13","2021-12-14","2021-12-15","2021-12-16","2021-12-17","2021-12-18","2021-12-19","2021-12-20","2021-12-21","2021-12-22","2021-12-23","2021-12-24","2021-12-25","2021-12-26","2021-12-27","2021-12-28","2021-12-29","2021-12-30","2021-12-31","2022-01-01","2022-01-02","2022-01-03","2022-01-04","2022-01-05","2022-01-06","2022-01-07","2022-01-08","2022-01-09","2022-01-10","2022-01-11","2022-01-12","2022-01-13","2022-01-14","2022-01-15","2022-01-16","2022-01-17","2022-01-18","2022-01-19","2022-01-20","2022-01-21","2022-01-22","2022-01-23","2022-01-24","2022-01-25","2022-01-26","2022-01-27","2022-01-28","2022-01-29","2022-01-30","2022-01-31","2022-02-01","2022-02-02","2022-02-03","2022-02-04","2022-02-05","2022-02-06","2022-02-07","2022-02-08","2022-02-09","2022-02-10","2022-02-11","2022-02-12","2022-02-13","2022-02-14","2022-02-15","2022-02-16","2022-02-17","2022-02-18","2022-02-19","2022-02-20","2022-02-21","2022-02-22","2022-02-23","2022-02-24","2022-02-25","2022-02-26","2022-02-27","2022-02-28","2022-03-01","2022-03-02","2022-03-03","2022-03-04","2022-03-05","2022-03-06","2022-03-07","2022-03-08","2022-03-09","2022-03-10","2022-03-11","2022-03-12","2022-03-13","2022-03-14","2022-03-15","2022-03-16","2022-03-17","2022-03-18","2022-03-19","2022-03-20","2022-03-21","2022-03-22","2022-03-23","2022-03-24","2022-03-25","2022-03-26","2022-03-27","2022-03-28","2022-03-29","2022-03-30","2022-03-31","2022-04-01","2022-04-02","2022-04-03","2022-04-04","2022-04-05","2022-04-06","2022-04-07","2022-04-08","2022-04-09","2022-04-10","2022-04-11","2022-04-12","2022-04-13","2022-04-14","2022-04-15","2022-04-16","2022-04-17","2022-04-18","2022-04-19","2022-04-20","2022-04-21","2022-04-22","2022-04-23","2022-04-24","2022-04-25","2022-04-26","2022-04-27","2022-04-28","2022-04-29","2022-04-30","2022-05-01","2022-05-02","2022-05-03","2022-05-04","2022-05-05","2022-05-06","2022-05-07","2022-05-08","2022-05-09","2022-05-10","2022-05-11","2022-05-12","2022-05-13","2022-05-14","2022-05-15","2022-05-16","2022-05-17","2022-05-18","2022-05-19","2022-05-20","2022-05-21","2022-05-22","2022-05-23","2022-05-24","2022-05-25","2022-05-26","2022-05-27","2022-05-28","2022-05-29","2022-05-30","2022-05-31","2022-06-01","2022-06-02","2022-06-03","2022-06-04","2022-06-05","2022-06-06","2022-06-07","2022-06-08","2022-06-09","2022-06-10","2022-06-11","2022-06-12","2022-06-13","2022-06-14","2022-06-15","2022-06-16","2022-06-17","2022-06-18","2022-06-19","2022-06-20","2022-06-21","2022-06-22","2022-06-23","2022-06-24","2022-06-25","2022-06-26","2022-06-27","2022-06-28","2022-06-29","2022-06-30","2022-07-01","2022-07-02","2022-07-03","2022-07-04","2022-07-05","2022-07-06","2022-07-07","2022-07-08","2022-07-09","2022-07-10","2022-07-11","2022-07-12","2022-07-13","2022-07-14","2022-07-15","2022-07-16","2022-07-17","2022-07-18","2022-07-19","2022-07-20","2022-07-21","2022-07-22","2022-07-23","2022-07-24","2022-07-25","2022-07-26","2022-07-27","2022-07-28","2022-07-29","2022-07-30","2022-07-31","2022-08-01","2022-08-02","2022-08-03","2022-08-04","2022-08-05","2022-08-06","2022-08-07","2022-08-08","2022-08-09","2022-08-10","2022-08-11","2022-08-12","2022-08-13","2022-08-14","2022-08-15","2022-08-16","2022-08-17","2022-08-18","2022-08-19","2022-08-20","2022-08-21","2022-08-22","2022-08-23","2022-08-24","2022-08-25","2022-08-26","2022-08-27","2022-08-28","2022-08-29","2022-08-30","2022-08-31","2022-09-01","2022-09-02","2022-09-03","2022-09-04","2022-09-05","2022-09-06","2022-09-07","2022-09-08","2022-09-09","2022-09-10","2022-09-11","2022-09-12","2022-09-13","2022-09-14","2022-09-15","2022-09-16","2022-09-17","2022-09-18","2022-09-19","2022-09-20","2022-09-21","2022-09-22","2022-09-23","2022-09-24","2022-09-25","2022-09-26","2022-09-27","2022-09-28","2022-09-29","2022-09-30","2022-10-01","2022-10-02","2022-10-03","2022-10-04","2022-10-05","2022-10-06","2022-10-07","2022-10-08","2022-10-09","2022-10-10","2022-10-11","2022-10-12","2022-10-13","2022-10-14","2022-10-15","2022-10-16","2022-10-17","2022-10-18","2022-10-19","2022-10-20","2022-10-21","2022-10-22","2022-10-23","2022-10-24","2022-10-25","2022-10-26","2022-10-27","2022-10-28","2022-10-29","2022-10-30","2022-10-31","2022-11-01","2022-11-02","2022-11-03","2022-11-04","2022-11-05","2022-11-06","2022-11-07","2022-11-08","2022-11-09","2022-11-10","2022-11-11","2022-11-12","2022-11-13","2022-11-14","2022-11-15","2022-11-16","2022-11-17","2022-11-18","2022-11-19","2022-11-20","2022-11-21","2022-11-22","2022-11-23","2022-11-24","2022-11-25","2022-11-26","2022-11-27","2022-11-28","2022-11-29","2022-11-30","2022-12-01","2022-12-02","2022-12-03","2022-12-04","2022-12-05","2022-12-06","2022-12-07","2022-12-08","2022-12-09","2022-12-10","2022-12-11","2022-12-12","2022-12-13","2022-12-14","2022-12-15","2022-12-16","2022-12-17","2022-12-18","2022-12-19","2022-12-20","2022-12-21","2022-12-22","2022-12-23","2022-12-24","2022-12-25","2022-12-26","2022-12-27","2022-12-28","2022-12-29","2022-12-30","2022-12-31","2023-01-01","2023-01-02","2023-01-03","2023-01-04","2023-01-05","2023-01-06","2023-01-07","2023-01-08","2023-01-09","2023-01-10","2023-01-11","2023-01-12","2023-01-13","2023-01-14","2023-01-15","2023-01-16","2023-01-17","2023-01-18","2023-01-19","2023-01-20","2023-01-21","2023-01-22","2023-01-23","2023-01-24","2023-01-25","2023-01-26","2023-01-27","2023-01-28","2023-01-29","2023-01-30","2023-01-31","2023-02-01","2023-02-02","2023-02-03","2023-02-04","2023-02-05","2023-02-06","2023-02-07","2023-02-08","2023-02-09","2023-02-10","2023-02-11","2023-02-12","2023-02-13","2023-02-14","2023-02-15","2023-02-16","2023-02-17","2023-02-18","2023-02-19","2023-02-20","2023-02-21","2023-02-22","2023-02-23","2023-02-24","2023-02-25","2023-02-26","2023-02-27","2023-02-28","2023-03-01","2023-03-02","2023-03-03","2023-03-04","2023-03-05","2023-03-06","2023-03-07","2023-03-08","2023-03-09","2023-03-10","2023-03-11","2023-03-12","2023-03-13","2023-03-14","2023-03-15","2023-03-16","2023-03-17","2023-03-18","2023-03-19","2023-03-20","2023-03-21","2023-03-22","2023-03-23","2023-03-24","2023-03-25","2023-03-26","2023-03-27","2023-03-28","2023-03-29","2023-03-30","2023-03-31","2023-04-01","2023-04-02","2023-04-03","2023-04-04","2023-04-05","2023-04-06","2023-04-07","2023-04-08","2023-04-09","2023-04-10","2023-04-11","2023-04-12","2023-04-13","2023-04-14","2023-04-15","2023-04-16","2023-04-17","2023-04-18","2023-04-19","2023-04-20","2023-04-21","2023-04-22","2023-04-23","2023-04-24","2023-04-25","2023-04-26","2023-04-27","2023-04-28","2023-04-29","2023-04-30","2023-05-01","2023-05-02","2023-05-03","2023-05-04","2023-05-05","2023-05-06","2023-05-07","2023-05-08","2023-05-09","2023-05-10","2023-05-11","2023-05-12","2023-05-13","2023-05-14","2023-05-15","2023-05-16","2023-05-17","2023-05-18","2023-05-19","2023-05-20","2023-05-21","2023-05-22","2023-05-23","2023-05-24","2023-05-25","2023-05-26","2023-05-27","2023-05-28","2023-05-29","2023-05-30","2023-05-31","2023-06-01","2023-06-02","2023-06-03","2023-06-04","2023-06-05","2023-06-06","2023-06-07","2023-06-08","2023-06-09","2023-06-10","2023-06-11","2023-06-12","2023-06-13","2023-06-14","2023-06-15","2023-06-16","2023-06-17","2023-06-18","2023-06-19","2023-06-20","2023-06-21","2023-06-22","2023-06-23","2023-06-24","2023-06-25","2023-06-26","2023-06-27","2023-06-28","2023-06-29","2023-06-30","2023-07-01","2023-07-02","2023-07-03","2023-07-04","2023-07-05","2023-07-06","2023-07-07","2023-07-08","2023-07-09","2023-07-10","2023-07-11","2023-07-12","2023-07-13","2023-07-14","2023-07-15","2023-07-16","2023-07-17","2023-07-18","2023-07-19","2023-07-20","2023-07-21","2023-07-22","2023-07-23","2023-07-24","2023-07-25","2023-07-26","2023-07-27","2023-07-28","2023-07-29","2023-07-30","2023-07-31","2023-08-01","2023-08-02","2023-08-03","2023-08-04","2023-08-05","2023-08-06","2023-08-07","2023-08-08","2023-08-09","2023-08-10","2023-08-11","2023-08-12","2023-08-13","2023-08-14","2023-08-15","2023-08-16","2023-08-17","2023-08-18","2023-08-19","2023-08-20","2023-08-21","2023-08-22","2023-08-23","2023-08-24","2023-08-25","2023-08-26","2023-08-27","2023-08-28","2023-08-29","2023-08-30","2023-08-31","2023-09-01","2023-09-02","2023-09-03","2023-09-04","2023-09-05","2023-09-06","2023-09-07","2023-09-08","2023-09-09","2023-09-10","2023-09-11","2023-09-12","2023-09-13","2023-09-14","2023-09-15","2023-09-16","2023-09-17","2023-09-18","2023-09-19","2023-09-20","2023-09-21","2023-09-22","2023-09-23","2023-09-24","2023-09-25","2023-09-26","2023-09-27","2023-09-28","2023-09-29","2023-09-30","2023-10-01","2023-10-02","2023-10-03","2023-10-04","2023-10-05","2023-10-06","2023-10-07","2023-10-08","2023-10-09","2023-10-10","2023-10-11","2023-10-12","2023-10-13","2023-10-14","2023-10-15","2023-10-16","2023-10-17","2023-10-18","2023-10-19","2023-10-20","2023-10-21","2023-10-22","2023-10-23","2023-10-24","2023-10-25","2023-10-26","2023-10-27","2023-10-28","2023-10-29","2023-10-30","2023-10-31","2023-11-01","2023-11-02","2023-11-03","2023-11-04","2023-11-05","2023-11-06","2023-11-07","2023-11-08","2023-11-09","2023-11-10","2023-11-11","2023-11-12","2023-11-13","2023-11-14","2023-11-15","2023-11-16","2023-11-17","2023-11-18","2023-11-19","2023-11-20","2023-11-21","2023-11-22","2023-11-23","2023-11-24","2023-11-25","2023-11-26","2023-11-27","2023-11-28","2023-11-29","2023-11-30","2023-12-01","2023-12-02","2023-12-03","2023-12-04","2023-12-05","2023-12-06","2023-12-07","2023-12-08","2023-12-09","2023-12-10","2023-12-11","2023-12-12","2023-12-13","2023-12-14","2023-12-15","2023-12-16","2023-12-17","2023-12-18","2023-12-19","2023-12-20","2023-12-21","2023-12-22","2023-12-23","2023-12-24","2023-12-25","2023-12-26","2023-12-27","2023-12-28","2023-12-29","2023-12-30","2023-12-31","2024-01-01","2024-01-02","2024-01-03","2024-01-04","2024-01-05","2024-01-06","2024-01-07","2024-01-08","2024-01-09","2024-01-10","2024-01-11","2024-01-12","2024-01-13","2024-01-14","2024-01-15","2024-01-16","2024-01-17","2024-01-18","2024-01-19","2024-01-20","2024-01-21","2024-01-22","2024-01-23","2024-01-24","2024-01-25","2024-01-26","2024-01-27","2024-01-28","2024-01-29","2024-01-30","2024-01-31","2024-02-01","2024-02-02","2024-02-03","2024-02-04","2024-02-05","2024-02-06","2024-02-07","2024-02-08","2024-02-09","2024-02-10","2024-02-11","2024-02-12","2024-02-13","2024-02-14","2024-02-15","2024-02-16","2024-02-17","2024-02-18","2024-02-19","2024-02-20","2024-02-21","2024-02-22","2024-02-23","2024-02-24","2024-02-25","2024-02-26","2024-02-27","2024-02-28","2024-02-29","2024-03-01","2024-03-02","2024-03-03","2024-03-04","2024-03-05","2024-03-06","2024-03-07","2024-03-08","2024-03-09","2024-03-10","2024-03-11","2024-03-12","2024-03-13","2024-03-14","2024-03-15","2024-03-16","2024-03-17","2024-03-18","2024-03-19","2024-03-20","2024-03-21","2024-03-22","2024-03-23","2024-03-24","2024-03-25","2024-03-26","2024-03-27","2024-03-28","2024-03-29","2024-03-30","2024-03-31","2024-04-01","2024-04-02","2024-04-03","2024-04-04","2024-04-05","2024-04-06","2024-04-07","2024-04-08","2024-04-09","2024-04-10","2024-04-11","2024-04-12","2024-04-13","2024-04-14","2024-04-15","2024-04-16","2024-04-17","2024-04-18","2024-04-19","2024-04-20","2024-04-21","2024-04-22","2024-04-23","2024-04-24","2024-04-25","2024-04-26","2024-04-27","2024-04-28","2024-04-29","2024-04-30","2024-05-01","2024-05-02","2024-05-03","2024-05-04","2024-05-05","2024-05-06","2024-05-07","2024-05-08","2024-05-09","2024-05-10","2024-05-11","2024-05-12","2024-05-13","2024-05-14","2024-05-15","2024-05-16","2024-05-17","2024-05-18","2024-05-19","2024-05-20","2024-05-21","2024-05-22","2024-05-23","2024-05-24","2024-05-25","2024-05-26","2024-05-27","2024-05-28","2024-05-29","2024-05-30","2024-05-31","2024-06-01","2024-06-02","2024-06-03","2024-06-04","2024-06-05","2024-06-06","2024-06-07","2024-06-08","2024-06-09","2024-06-10","2024-06-11","2024-06-12","2024-06-13","2024-06-14","2024-06-15","2024-06-16","2024-06-17","2024-06-18","2024-06-19","2024-06-20","2024-06-21","2024-06-22","2024-06-23","2024-06-24","2024-06-25","2024-06-26","2024-06-27","2024-06-28","2024-06-29","2024-06-30","2024-07-01","2024-07-02","2024-07-03","2024-07-04","2024-07-05","2024-07-06","2024-07-07","2024-07-08","2024-07-09","2024-07-10","2024-07-11","2024-07-12","2024-07-13","2024-07-14","2024-07-15","2024-07-16","2024-07-17","2024-07-18","2024-07-19","2024-07-20","2024-07-21","2024-07-22","2024-07-23","2024-07-24","2024-07-25","2024-07-26","2024-07-27","2024-07-28","2024-07-29","2024-07-30","2024-07-31","2024-08-01","2024-08-02","2024-08-03","2024-08-04","2024-08-05","2024-08-06","2024-08-07","2024-08-08","2024-08-09","2024-08-10","2024-08-11","2024-08-12","2024-08-13","2024-08-14","2024-08-15","2024-08-16","2024-08-17","2024-08-18","2024-08-19","2024-08-20","2024-08-21","2024-08-22","2024-08-23","2024-08-24","2024-08-25","2024-08-26","2024-08-27","2024-08-28","2024-08-29","2024-08-30","2024-08-31","2024-09-01","2024-09-02","2024-09-03","2024-09-04","2024-09-05","2024-09-06","2024-09-07","2024-09-08","2024-09-09","2024-09-10","2024-09-11","2024-09-12","2024-09-13","2024-09-14","2024-09-15","2024-09-16","2024-09-17","2024-09-18","2024-09-19","2024-09-20","2024-09-21","2024-09-22","2024-09-23","2024-09-24","2024-09-25","2024-09-26","2024-09-27","2024-09-28","2024-09-29","2024-09-30","2024-10-01","2024-10-02","2024-10-03","2024-10-04","2024-10-05","2024-10-06","2024-10-07","2024-10-08","2024-10-09","2024-10-10","2024-10-11","2024-10-12","2024-10-13","2024-10-14","2024-10-15","2024-10-16","2024-10-17","2024-10-18","2024-10-19","2024-10-20","2024-10-21","2024-10-22","2024-10-23","2024-10-24","2024-10-25","2024-10-26","2024-10-27","2024-10-28","2024-10-29","2024-10-30","2024-10-31","2024-11-01","2024-11-02","2024-11-03","2024-11-04","2024-11-05","2024-11-06","2024-11-07","2024-11-08","2024-11-09","2024-11-10","2024-11-11","2024-11-12","2024-11-13","2024-11-14","2024-11-15","2024-11-16","2024-11-17","2024-11-18","2024-11-19","2024-11-20","2024-11-21","2024-11-22","2024-11-23","2024-11-24","2024-11-25","2024-11-26","2024-11-27","2024-11-28","2024-11-29","2024-11-30","2024-12-01","2024-12-02","2024-12-03","2024-12-04","2024-12-05","2024-12-06","2024-12-07","2024-12-08","2024-12-09","2024-12-10","2024-12-11","2024-12-12","2024-12-13","2024-12-14","2024-12-15","2024-12-16","2024-12-17","2024-12-18","2024-12-19","2024-12-20","2024-12-21","2024-12-22","2024-12-23","2024-12-24","2024-12-25","2024-12-26","2024-12-27","2024-12-28","2024-12-29","2024-12-30","2024-12-31","2025-01-01","2025-01-02","2025-01-03","2025-01-04","2025-01-05","2025-01-06","2025-01-07","2025-01-08","2025-01-09","2025-01-10","2025-01-11","2025-01-12","2025-01-13","2025-01-14","2025-01-15","2025-01-16","2025-01-17","2025-01-18","2025-01-19","2025-01-20","2025-01-21","2025-01-22","2025-01-23","2025-01-24","2025-01-25","2025-01-26","2025-01-27","2025-01-28","2025-01-29","2025-01-30","2025-01-31","2025-02-01","2025-02-02","2025-02-03","2025-02-04","2025-02-05","2025-02-06","2025-02-07","2025-02-08","2025-02-09","2025-02-10","2025-02-11","2025-02-12","2025-02-13","2025-02-14","2025-02-15","2025-02-16","2025-02-17","2025-02-18","2025-02-19","2025-02-20","2025-02-21","2025-02-22","2025-02-23","2025-02-24","2025-02-25","2025-02-26","2025-02-27","2025-02-28","2025-03-01","2025-03-02","2025-03-03","2025-03-04","2025-03-05","2025-03-06","2025-03-07","2025-03-08","2025-03-09","2025-03-10","2025-03-11","2025-03-12","2025-03-13","2025-03-14","2025-03-15","2025-03-16","2025-03-17","2025-03-18","2025-03-19","2025-03-20","2025-03-21","2025-03-22","2025-03-23","2025-03-24","2025-03-25","2025-03-26","2025-03-27","2025-03-28","2025-03-29","2025-03-30","2025-03-31","2025-04-01","2025-04-02","2025-04-03","2025-04-04","2025-04-05","2025-04-06","2025-04-07","2025-04-08","2025-04-09","2025-04-10","2025-04-11","2025-04-12","2025-04-13","2025-04-14","2025-04-15","2025-04-16","2025-04-17","2025-04-18","2025-04-19","2025-04-20","2025-04-21","2025-04-22","2025-04-23","2025-04-24","2025-04-25","2025-04-26","2025-04-27","2025-04-28","2025-04-29","2025-04-30","2025-05-01","2025-05-02","2025-05-03","2025-05-04","2025-05-05","2025-05-06","2025-05-07","2025-05-08","2025-05-09","2025-05-10","2025-05-11","2025-05-12","2025-05-13","2025-05-14","2025-05-15","2025-05-16","2025-05-17","2025-05-18","2025-05-19","2025-05-20","2025-05-21","2025-05-22","2025-05-23","2025-05-24","2025-05-25","2025-05-26","2025-05-27","2025-05-28","2025-05-29","2025-05-30","2025-05-31","2025-06-01","2025-06-02","2025-06-03","2025-06-04","2025-06-05","2025-06-06","2025-06-07","2025-06-08","2025-06-09","2025-06-10","2025-06-11","2025-06-12","2025-06-13","2025-06-14","2025-06-15","2025-06-16","2025-06-17","2025-06-18","2025-06-19","2025-06-20","2025-06-21","2025-06-22","2025-06-23","2025-06-24","2025-06-25","2025-06-26","2025-06-27","2025-06-28","2025-06-29","2025-06-30","2025-07-01","2025-07-02","2025-07-03","2025-07-04","2025-07-05","2025-07-06","2025-07-07","2025-07-08","2025-07-09","2025-07-10","2025-07-11","2025-07-12","2025-07-13","2025-07-14","2025-07-15","2025-07-16","2025-07-17","2025-07-18","2025-07-19","2025-07-20","2025-07-21","2025-07-22","2025-07-23","2025-07-24","2025-07-25","2025-07-26","2025-07-27","2025-07-28","2025-07-29","2025-07-30","2025-07-31","2025-08-01","2025-08-02","2025-08-03","2025-08-04","2025-08-05","2025-08-06","2025-08-07","2025-08-08","2025-08-09","2025-08-10","2025-08-11","2025-08-12","2025-08-13","2025-08-14","2025-08-15","2025-08-16","2025-08-17","2025-08-18","2025-08-19","2025-08-20","2025-08-21","2025-08-22","2025-08-23","2025-08-24","2025-08-25","2025-08-26","2025-08-27","2025-08-28","2025-08-29","2025-08-30","2025-08-31","2025-09-01","2025-09-02","2025-09-03","2025-09-04","2025-09-05","2025-09-06","2025-09-07","2025-09-08","2025-09-09","2025-09-10","2025-09-11","2025-09-12","2025-09-13","2025-09-14","2025-09-15","2025-09-16","2025-09-17","2025-09-18","2025-09-19","2025-09-20","2025-09-21","2025-09-22","2025-09-23","2025-09-24","2025-09-25","2025-09-26","2025-09-27","2025-09-28","2025-09-29","2025-09-30","2025-10-01","2025-10-02","2025-10-03","2025-10-04","2025-10-05","2025-10-06","2025-10-07","2025-10-08","2025-10-09","2025-10-10","2025-10-11","2025-10-12","2025-10-13","2025-10-14","2025-10-15","2025-10-16","2025-10-17","2025-10-18","2025-10-19","2025-10-20","2025-10-21","2025-10-22","2025-10-23","2025-10-24","2025-10-25","2025-10-26","2025-10-27","2025-10-28","2025-10-29","2025-10-30","2025-10-31","2025-11-01","2025-11-02","2025-11-03","2025-11-04","2025-11-05","2025-11-06","2025-11-07","2025-11-08","2025-11-09","2025-11-10","2025-11-11","2025-11-12","2025-11-13","2025-11-14","2025-11-15","2025-11-16","2025-11-17","2025-11-18","2025-11-19","2025-11-20","2025-11-21","2025-11-22","2025-11-23","2025-11-24","2025-11-25","2025-11-26","2025-11-27","2025-11-28","2025-11-29","2025-11-30","2025-12-01","2025-12-02","2025-12-03","2025-12-04","2025-12-05","2025-12-06","2025-12-07","2025-12-08","2025-12-09","2025-12-10","2025-12-11","2025-12-12","2025-12-13","2025-12-14","2025-12-15","2025-12-16","2025-12-17","2025-12-18","2025-12-19","2025-12-20","2025-12-21","2025-12-22","2025-12-23","2025-12-24","2025-12-25","2025-12-26","2025-12-27","2025-12-28","2025-12-29","2025-12-30","2025-12-31","2026-01-01","2026-01-02","2026-01-03","2026-01-04","2026-01-05","2026-01-06","2026-01-07","2026-01-08","2026-01-09","2026-01-10","2026-01-11","2026-01-12","2026-01-13","2026-01-14","2026-01-15","2026-01-16","2026-01-17","2026-01-18","2026-01-19","2026-01-20","2026-01-21","2026-01-22","2026-01-23","2026-01-24","2026-01-25","2026-01-26","2026-01-27","2026-01-28","2026-01-29","2026-01-30","2026-01-31","2026-02-01","2026-02-02","2026-02-03","2026-02-04","2026-02-05","2026-02-06","2026-02-07","2026-02-08","2026-02-09","2026-02-10","2026-02-11","2026-02-12","2026-02-13","2026-02-14","2026-02-15","2026-02-16","2026-02-17","2026-02-18","2026-02-19","2026-02-20","2026-02-21","2026-02-22","2026-02-23","2026-02-24","2026-02-25","2026-02-26","2026-02-27","2026-02-28","2026-03-01","2026-03-02","2026-03-03","2026-03-04","2026-03-05","2026-03-06","2026-03-07","2026-03-08","2026-03-09","2026-03-10","2026-03-11","2026-03-12","2026-03-13","2026-03-14","2026-03-15","2026-03-16","2026-03-17","2026-03-18","2026-03-19","2026-03-20","2026-03-21","2026-03-22","2026-03-23","2026-03-24","2026-03-25","2026-03-26","2026-03-27","2026-03-28","2026-03-29","2026-03-30","2026-03-31","2026-04-01","2026-04-02","2026-04-03","2026-04-04","2026-04-05","2026-04-06","2026-04-07","2026-04-08","2026-04-09","2026-04-10","2026-04-11","2026-04-12","2026-04-13","2026-04-14","2026-04-15","2026-04-16","2026-04-17","2026-04-18","2026-04-19","2026-04-20","2026-04-21","2026-04-22","2026-04-23","2026-04-24","2026-04-25","2026-04-26","2026-04-27","2026-04-28","2026-04-29","2026-04-30","2026-05-01","2026-05-02","2026-05-03","2026-05-04","2026-05-05","2026-05-06","2026-05-07","2026-05-08","2026-05-09","2026-05-10","2026-05-11","2026-05-12","2026-05-13","2026-05-14","2026-05-15","2026-05-16","2026-05-17","2026-05-18","2026-05-19","2026-05-20","2026-05-21","2026-05-22","2026-05-23","2026-05-24","2026-05-25","2026-05-26","2026-05-27","2026-05-28","2026-05-29","2026-05-30","2026-05-31","2026-06-01","2026-06-02","2026-06-03","2026-06-04","2026-06-05","2026-06-06","2026-06-07","2026-06-08","2026-06-09","2026-06-10","2026-06-11","2026-06-12","2026-06-13","2026-06-14","2026-06-15","2026-06-16","2026-06-17","2026-06-18","2026-06-19","2026-06-20","2026-06-21","2026-06-22","2026-06-23","2026-06-24","2026-06-25","2026-06-26","2026-06-27","2026-06-28","2026-06-29","2026-06-30","2026-07-01","2026-07-02","2026-07-03","2026-07-04","2026-07-05","2026-07-06","2026-07-07","2026-07-08","2026-07-09","2026-07-10","2026-07-11","2026-07-12","2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04","2026-09-05","2026-09-06"];
+const FULL_PRICES = [998,1019,1036,1131,991,894,900,908,902,906,784,799,824,818,822,828,904,874,897,891,920,919,919,886,893,915,918,920,914,921,968,987,1008,1015,1034,1017,1025,1052,1055,982,992,1011,1001,996,1010,1009,1035,1057,1059,1054,1082,1125,1123,1186,1181,1149,1181,1193,1190,1227,1262,1290,1269,1276,1281,1233,1150,1191,1100,1181,1231,1243,1247,1258,1217,1074,962,1023,1036,1113,1040,1029,940,965,954,1043,1045,1039,1031,1078,1085,1098,1139,1140,1132,1194,1190,1182,1188,1211,1227,1218,1174,1184,1180,1186,1205,1218,1226,1254,1255,1250,1248,1250,1263,1287,1331,1321,1328,1350,1408,1442,1486,1499,1506,1548,1558,1633,1700,1747,1809,1701,1752,1768,1696,1716,1804,1889,1973,2043,2054,2109,2293,2448,2367,2262,2083,2219,2286,2168,2329,2436,2514,2563,2556,2722,2722,2716,2716,2817,2937,3014,2701,2736,2503,2444,2514,2684,2577,2620,2778,2717,2725,2738,2618,2607,2488,2531,2575,2562,2491,2440,2519,2577,2611,2607,2613,2509,2563,2519,2364,2354,2387,2364,2229,2033,1927,2181,2304,2275,2767,2658,2802,2732,2751,2564,2507,2649,2799,2720,2740,2871,2738,2698,2777,2846,3237,3190,3357,3410,3331,3368,3563,3800,4023,4176,4149,4263,4287,4098,4115,4001,3935,4008,4069,4167,4200,4124,4116,4216,4394,4554,4703,4863,4557,4632,4317,4448,4592,4585,4285,4246,4133,4165,4131,3884,3101,3588,3606,3553,4012,3899,3858,3628,3622,3763,3672,3867,3853,4134,4135,4130,4298,4348,4383,4319,4231,4290,4348,4405,4562,4759,4769,4808,5332,5610,5679,5684,5729,5644,5593,5696,5953,6044,6003,5960,5550,5705,5883,5776,5734,6124,6104,6369,6715,7060,7235,7391,7416,7103,7167,7462,7186,6657,6365,5867,6423,6652,7298,7815,7784,7828,8011,8221,8114,8257,8118,8278,8743,9343,9831,10257,9876,10406,10996,11163,11257,11635,12174,13876,18491,16908,15266,15809,17107,17250,16525,16865,17979,19665,19424,19188,18174,17060,16355,14085,15242,14451,14303,16617,16373,15068,15097,13620,14840,14094,15322,15584,15976,18337,18344,17040,15900,15605,15509,14051,14759,15193,14477,14412,11724,11415,11569,11758,13260,11704,10992,10894,11277,11225,11045,11456,11666,11158,11095,9990,10114,9071,8830,8995,8316,6852,7711,7612,8209,8651,8575,8169,8911,8518,9428,10113,10155,11007,10523,11103,11502,9974,10033,10302,9743,9700,10356,10709,10347,10860,11098,11356,11287,11526,10728,10000,9421,9276,8891,9512,9233,9217,8307,8359,8520,8063,8218,8641,8927,8970,8736,8825,8621,8479,8186,7837,7931,7127,6897,6975,6837,7080,7464,6845,6855,6629,6884,6985,6778,6829,6925,7836,7846,7898,8258,8031,7874,8097,8277,8499,8878,8769,8881,9716,8825,9222,8940,9250,9326,9198,9024,9123,9551,9635,9766,9584,9308,9150,9249,8970,8406,8481,8684,8697,8473,8343,8056,8203,8181,8443,8355,8009,7556,7563,7472,7329,7327,7111,7451,7381,7460,7487,7568,7640,7464,7569,7606,7614,7561,7415,6767,6880,6582,6334,6645,6407,6479,6419,6678,6709,6714,6691,6089,6169,6160,6242,6070,6117,5880,6182,6366,6313,6596,6498,6563,6538,6603,6760,6701,6648,6303,6373,6231,6248,6246,6350,6742,7303,7335,7443,7332,7379,7396,7705,8422,8145,7929,8145,8192,8198,8186,7738,7612,7541,7412,7009,7037,6926,6712,6260,6531,6167,6205,6318,6284,6212,6268,6309,6567,6382,6475,6243,6467,6337,6521,6684,6736,6728,6911,7076,7047,7024,7028,7211,7305,7261,7359,6765,6498,6398,6181,6261,6308,6279,6331,6486,6500,6530,6506,6250,6347,6384,6492,6754,6747,6711,6596,6441,6463,6705,6635,6606,6626,6599,6525,6499,6579,6621,6589,6585,6653,6634,6582,6234,6286,6315,6329,6660,6635,6636,6518,6484,6533,6530,6513,6473,6481,6458,6469,6457,6481,6293,6332,6367,6380,6425,6388,6351,6415,6475,6575,6490,6414,6430,6434,6411,6394,5789,5687,5610,5599,5639,4889,4451,4613,4307,4377,3896,4040,3812,3833,4267,4279,4010,4190,4125,3879,3944,3752,3467,3409,3425,3551,3434,3379,3438,3295,3217,3222,3217,3506,3656,3688,4065,3846,3961,3942,4022,3759,3782,3588,3854,3778,3810,3693,3794,3872,3777,3815,3787,4014,3990,3974,3982,3624,3633,3598,3496,3648,3568,3598,3621,3598,3675,3539,3531,3571,3556,3566,3565,3564,3553,3432,3413,3458,3432,3464,3487,3454,3464,3470,3406,3394,3664,3667,3676,3631,3634,3610,3590,3601,3623,3665,3887,3915,3977,3935,3974,4115,3743,3825,3809,3813,3816,3816,3820,3807,3713,3852,3861,3872,3862,3942,3924,3860,3876,3866,3877,3925,4008,3981,3987,4014,4046,3983,3989,4009,3993,3928,3939,4036,4028,4103,4104,4104,4146,4862,4956,4899,5015,5042,5177,5267,5172,5309,5048,5082,5073,5149,5040,5214,5219,5275,5280,5308,5311,5381,5558,5452,5203,5296,5257,5258,5200,5293,5355,5451,5731,5804,5749,5716,5841,5958,6168,6370,7258,6954,7806,7990,8192,7876,7343,7301,8169,7977,7958,7666,7862,7977,8038,8631,8816,8727,8651,8311,8576,8554,8744,8174,7684,7812,7821,8036,7943,7668,8003,7898,8145,8228,8672,8819,8979,9313,9094,9286,9548,10118,10705,10846,11046,11808,12996,11179,12352,11973,10888,10639,10823,11976,11230,10987,11279,11436,12260,12544,12166,11385,11805,11419,10285,10911,9539,9657,10636,10537,10774,10607,10343,9936,9799,9878,9846,9448,9535,9511,9568,10063,10361,10529,10791,10952,11819,11510,11971,12024,11853,11328,11550,11381,10904,10016,10296,10325,10224,10310,10896,10744,10124,10128,10386,10145,10090,10335,10168,9753,9485,9589,9607,9729,10323,10620,10574,10570,10351,10462,10404,10322,10121,10151,10401,10356,10350,10306,10268,10203,10159,10253,10178,9997,10041,9700,8703,8446,8099,8183,8225,8064,8271,8367,8350,8176,8157,8140,7890,8182,8181,8573,8562,8278,8308,8289,8347,8176,8010,8080,7957,7950,8208,8221,8045,7469,7434,8652,9217,9502,9240,9407,9172,9152,9233,9303,9204,9379,9300,9340,9221,8796,8810,9044,8730,8807,8771,8652,8480,8496,8508,8203,8139,8096,7632,7293,7310,6936,7118,7158,7484,7439,7721,7556,7406,7309,7286,7210,7374,7531,7494,7508,7347,7234,7197,7201,7247,7082,7109,6901,6627,7275,7153,7185,7142,7488,7335,7267,7204,7208,7248,7308,7394,7240,7195,7194,6964,7300,7351,7350,7735,8147,8046,7833,8181,8012,8171,8111,8802,8821,8721,8903,8907,8690,8631,8725,8665,8416,8432,8349,8596,8879,9321,9277,9510,9308,9363,9338,9309,9180,9592,9745,9799,9891,10148,9890,10227,10329,10221,10320,9894,9944,9724,10134,9618,9608,9673,9659,9947,9671,9345,8802,8781,8717,8553,8568,8906,8757,8759,9039,9136,8902,8041,7921,7907,7936,5143,5543,5214,5398,5033,5389,5376,6170,6196,6146,5860,6456,6730,6696,6766,6398,6255,5915,6403,6422,6641,6808,6733,6859,6788,7298,7197,7342,7294,6865,6879,6913,6858,6860,6629,7060,7035,7243,7128,6856,6842,7110,7383,7495,7539,7684,7774,7758,8744,8611,8825,8966,8889,8884,9003,9145,9959,9822,9567,8753,8605,8788,9283,9796,9309,9375,9666,9708,9760,9527,9060,9132,9170,8732,8884,8839,9174,9546,9427,9663,9467,10168,9515,9645,9776,9637,9663,9739,9773,9767,9875,9326,9470,9469,9346,9432,9525,9463,9400,9313,9360,9298,9679,9625,9288,9259,9166,9014,9140,9185,9150,9231,9094,9071,9133,9087,9342,9254,9432,9236,9283,9234,9297,9241,9247,9203,9136,9156,9168,9203,9163,9384,9514,9590,9536,9692,9926,10962,10905,11094,11116,11326,11812,11066,11231,11182,11719,11768,11571,11739,11683,11863,11399,11580,11817,11777,11865,11902,12272,11950,11733,11862,11515,11676,11648,11759,11351,11465,11300,11519,11481,11701,11672,11895,11418,10197,10484,10178,10260,10359,10125,10230,10342,10378,10439,10329,10661,10788,10952,10938,10927,11084,10923,10440,10528,10224,10727,10682,10743,10765,10672,10838,10771,10628,10573,10547,10671,10785,10606,10668,10889,11063,11287,11378,11543,11426,11436,11496,11319,11366,11496,11752,11909,12806,12951,12928,13106,13021,13061,13655,13283,13442,13537,13779,13720,13558,13990,14102,15553,15548,14818,15496,15335,15279,15687,16265,16327,16096,15985,16714,17652,17830,17820,18629,18690,18391,18361,19092,18753,17138,17140,17719,18170,19610,18857,19208,19435,18711,19139,19326,19199,18337,18565,18262,18058,18807,19151,19260,19432,21318,22806,23121,23864,23518,22841,23795,23308,23760,24671,26476,26423,27125,27425,28837,29022,29352,32164,33008,31516,34082,36934,39547,40816,40297,38398,35670,33938,37456,39233,36788,36255,35804,36595,36105,35587,30914,32958,32068,32274,32375,32582,30446,33128,34151,34200,33065,33406,35486,37495,36817,38008,39279,38833,46308,46570,44849,47816,47414,46941,48608,47898,49238,52144,51733,56039,56378,57669,54411,48692,49849,46993,46551,46654,44970,49787,48532,50577,48727,49092,49019,51313,52329,54700,56020,57789,57354,61315,59429,55805,56830,59015,57922,58243,58376,57574,54370,54585,52527,51417,55033,55832,55728,57635,58669,58817,58801,59060,57060,58229,58707,58062,56134,58066,58153,59979,59988,59911,63577,62807,63180,61497,60274,56289,55721,56295,54190,51966,51191,50133,48981,53979,54992,54811,53597,57829,57813,56601,57200,53464,57432,56508,57362,58772,58214,55902,56929,50005,49973,49913,46781,46585,43781,43091,37287,40438,37340,37520,34978,38642,38211,39407,38643,35710,34775,35715,37341,36680,37686,39151,36939,35547,35834,33451,33557,37554,36903,37289,35666,39148,40625,40378,38321,38194,35881,35582,35787,31712,32508,33703,34675,31943,32024,34607,34557,35969,35171,33678,33951,34730,35394,33928,34150,33932,32934,33971,33705,34300,33263,32676,32879,31726,31400,31589,31919,30928,29972,32384,32409,33456,34214,35456,37282,39077,40031,39978,41936,41754,39915,39279,38368,39752,40825,42802,44648,43753,46311,45640,45652,44495,47717,47089,47025,46032,44534,45015,46745,49196,48934,49251,49519,47941,49003,47229,49083,48937,48907,47124,47335,48823,49339,49935,50013,51696,52740,46995,46085,46519,44803,45196,46195,45140,47135,48187,47879,47229,48267,47371,42933,40387,43587,44981,42752,42857,43337,42247,41010,41588,43859,48182,47778,48283,49260,51669,55415,53895,54011,55125,54712,57573,56335,57488,57452,61809,61166,61584,62018,64518,66238,62541,61029,61572,61173,63228,60604,58641,60768,62283,61837,61472,61122,63247,63131,61602,61247,61661,63153,67617,67145,65061,65006,64432,64660,65649,63934,60449,60604,56987,58459,60083,59140,56387,57749,57198,58898,53828,54533,57238,57849,57011,57169,56508,53786,49162,49268,50462,50648,50530,47886,47304,49242,50051,46696,48411,48937,47695,46329,46970,46807,47117,49145,48756,50901,50889,50663,50853,50774,47725,46507,47192,46320,47816,47387,46531,45938,43647,43216,41527,41757,41862,41870,42777,43982,42608,43121,43227,43120,42298,42395,41750,40708,36509,35180,36306,36774,36989,36870,37277,37853,38232,37983,38556,38836,37001,37101,41674,41494,42476,43911,44184,44384,43628,42445,42255,42248,42635,44574,44063,40563,40073,40193,38514,37060,38337,37372,38363,39316,39090,37804,43225,44460,43981,42492,39200,39463,38443,38076,38733,41986,39468,38775,38904,37853,39669,39332,41166,41002,41837,42202,41283,41062,42402,42802,43936,44332,44511,46715,46995,47459,47063,45528,46270,45842,46435,46623,45635,43199,43515,42316,42796,42275,39604,40206,41205,39959,40587,40450,39739,40834,41498,41397,40529,39757,39562,39469,40489,38134,39238,39742,38651,37821,38538,38562,37758,39699,36612,36116,35573,34070,30270,31027,28913,29126,29311,30189,31319,29924,30502,28772,30382,29257,29492,30351,29163,29655,29585,29347,28647,29088,29493,31741,31866,29833,30481,29714,29872,29918,31373,31265,30229,30101,29101,28374,26767,22526,22245,22529,20409,20473,19047,20516,20637,20701,19984,21100,21263,21526,21053,20751,20283,20109,19608,19407,19268,19310,20257,20189,20567,21661,21859,21590,20860,19998,19351,20225,20575,20795,21193,20824,22395,23367,23313,23155,22697,22506,22614,21330,21236,22909,23822,23848,23653,23380,23334,23054,22860,22678,23225,22985,23198,23824,23204,23949,23949,24411,24434,24313,24179,23913,23359,23248,20946,21175,21616,21388,21562,21395,21618,20271,20070,19659,20309,19805,20024,20154,19941,19815,19980,19786,18860,19281,19323,21360,21707,21740,22340,20185,20256,19702,19764,20132,19437,19570,18870,18540,19464,19292,18940,18809,19220,19116,19445,19564,19477,19314,19065,19621,20345,20162,19949,19457,19418,19448,19143,19059,19153,19384,19198,19073,19273,19558,19348,19134,19031,19173,19204,19575,19317,20095,20774,20278,20591,20801,20624,20495,20490,20163,20211,21150,21283,20907,20598,18562,15742,17595,17080,16798,16344,16646,16891,16689,16718,16707,16713,16304,15814,16172,16608,16596,16524,16456,16459,16222,16442,17187,16973,17085,16923,17150,16973,17086,16851,17235,17150,17125,17101,17180,17784,17809,17338,16624,16806,16743,16423,16899,16817,16825,16791,16849,16842,16900,16702,16539,16644,16604,16541,16616,16674,16678,16855,16832,16960,16951,17075,17195,17437,17997,18867,19942,21019,20853,21175,21157,20727,21082,22706,22771,22737,22985,22610,23180,23025,23083,23022,23797,22840,23137,23725,23540,23452,23340,22946,22786,23295,22948,21821,21630,21889,21780,21808,22220,24308,23757,24629,24643,24284,24787,24417,24146,23951,23172,23157,23541,23518,23156,23634,23464,22367,22348,22422,22415,22217,21713,20376,20195,20522,22096,24179,24759,24471,25161,27467,27108,28187,27929,28264,27449,28460,27595,27670,28048,27182,27291,28395,28041,28517,28499,28237,27815,28175,28197,28043,27934,27968,28351,29658,30261,29904,30405,30468,30312,30305,29467,30366,28833,28256,27300,27862,27607,27512,28351,28352,29484,29340,29218,29362,28126,28654,28988,28846,29520,28888,28611,27697,27607,27640,27025,26788,26798,26912,27228,27023,27390,26843,26884,27094,26774,26870,27223,26339,26476,26718,26848,28110,27760,27714,27245,26824,27248,27066,27315,25793,27217,26346,26508,26470,25858,25917,25910,25872,25108,25565,26327,26501,26333,26779,28331,30102,29936,30629,30538,30455,30286,30694,30083,30467,30481,30584,30572,31135,30776,30485,29990,30315,30264,30170,30394,30621,30407,31446,30312,30298,30237,30148,29848,29920,29787,29915,29710,30058,29185,29223,29364,29200,29314,29357,29278,29233,29537,29147,29176,29088,29047,29044,29178,29780,29585,29424,29397,29412,29285,29401,29170,28754,26502,26043,26105,26161,26119,26034,26450,26135,26044,26002,26083,26109,27731,27297,25927,25812,25854,25960,25829,25784,25753,26192,25907,25889,25835,25133,25867,26223,26531,26635,26558,26521,26741,27219,27116,26561,26572,26574,26250,26299,26205,26350,27009,26917,26970,27968,27615,27439,27792,27436,27958,27978,27948,27594,27392,26842,26729,26841,26863,27150,28513,28418,28328,28716,29677,29920,30019,32953,33847,34472,34174,33899,34093,34556,34499,34672,35457,34924,34731,35048,35062,35031,35437,35795,36768,37344,37123,37068,36549,35545,37904,36202,36528,36582,37414,37489,35965,37465,37293,37739,37810,37492,37250,37802,37810,37712,38688,39482,39960,41974,44106,43788,43270,44202,43745,43758,41201,41451,42932,43010,41992,42247,41411,42684,42250,43634,43850,44004,43752,43035,43638,42516,43418,42601,42075,42221,42208,44169,44995,42822,44196,44114,43956,43884,46936,46106,46632,46314,42894,42848,41801,42587,43148,42714,41261,41601,41626,41542,39505,39833,40124,39938,41863,42120,42027,43268,42892,42583,43069,43171,42977,42599,42648,43088,44247,45338,47143,47769,48190,50050,49732,51790,51958,52166,51685,52138,51764,52287,51843,51320,50841,51553,51752,54478,57004,62559,61298,62427,62068,63053,68187,64292,66146,66945,68315,68508,69076,72131,71467,73098,71420,69498,65292,68425,67709,62133,67819,65536,63509,64286,67311,69939,70082,69436,70710,69919,69702,71247,69786,65440,66124,68542,67979,69001,69402,71624,69159,70528,70107,67252,64405,65753,63431,63721,61329,63462,63989,64894,64936,66842,66407,64280,64486,63802,63517,63030,63798,60749,58298,59135,62839,63820,64010,63172,62363,61216,63149,60888,60777,61507,62879,61569,66221,65261,67053,66913,66253,71430,70190,69181,67906,68540,69268,68509,69367,68317,67577,68372,67475,67704,67740,68808,70600,71185,70760,69325,69315,69654,69493,67329,68225,66700,66011,66190,66616,66460,65109,64907,64845,64072,64240,63221,60363,61770,60750,61563,60317,60864,62734,62820,62043,60245,57189,56740,58230,55880,56665,57988,57704,57388,57899,59153,60942,64835,65162,64136,63960,66690,67206,68088,67608,65942,65404,65750,67920,68055,68242,66770,66219,64680,65358,61407,60739,58006,53956,55960,55100,61859,60913,60888,58804,59350,60601,58739,57624,58882,59431,58438,59575,59060,61145,60388,64050,64157,64266,62923,59527,59015,59352,59156,58960,57358,59109,57505,57988,56132,53923,54151,54792,57049,57624,57382,58107,60621,60003,59215,58211,60317,61440,62967,63128,63403,63583,63327,64334,63152,65131,65791,65934,65664,63243,60873,60656,60728,62103,62092,62812,62287,62185,60597,60195,62392,63208,62830,66050,66962,67648,67328,68466,68389,68963,67395,67351,66684,68214,66586,67018,67939,69845,72781,72343,70265,69508,69299,68804,67793,69335,75621,75987,76550,76630,80467,88637,88265,90488,87408,90948,90606,89841,90535,92252,94217,98509,98927,97679,98016,93005,91932,95981,95662,97453,96513,97312,95833,96032,98881,97202,99974,99782,101235,97354,96650,101124,100001,101352,101367,104722,106074,106035,100356,97851,97691,97203,95094,94645,98696,99345,95678,94332,95185,93663,92627,93508,94384,96852,98084,98257,98365,102229,96952,95017,92376,94737,94560,94455,94456,96574,100313,100045,104161,104335,101275,101765,106182,103674,104068,104835,104796,102552,101958,101313,103719,104782,102382,100675,97568,101467,98118,96583,96635,96558,96558,96549,97400,95740,97836,96562,97488,97570,96149,95776,95496,96555,98384,96135,96564,96327,91397,88756,83900,84709,84442,86005,94262,86125,87311,90604,90001,86773,86143,80751,78784,82799,83884,81099,84443,84205,83201,83754,81732,84560,84121,83853,84142,85312,88189,88227,86745,86974,83639,81805,82333,83398,85145,87209,81833,83100,82718,81654,78195,77114,78288,78814,82889,84493,84443,84389,84956,85176,84991,84493,84903,84524,86837,90826,93845,93158,95470,94311,94046,93731,95053,93869,97181,97218,96089,95459,94113,94453,96840,101289,102826,103470,103967,103019,103895,103267,103724,104143,103042,105737,105194,105869,109143,111355,109306,109083,107243,109480,110352,107682,106736,104113,104544,105183,104264,106105,105406,103628,104633,105483,106241,108202,108949,109565,107911,105402,104630,105553,107773,103696,104236,104060,103540,103545,99992,101421,105972,107366,107369,107271,107387,107544,107601,106170,109510,109584,107809,108039,108791,107996,108821,109286,113305,117527,117325,118657,120430,117268,119361,118863,117666,117958,118398,118012,118670,117497,118883,116203,118052,119015,117782,117832,117803,118186,114581,113314,114084,115507,113193,115185,116434,116435,116769,118621,119839,119778,121633,117694,117221,117764,117888,116386,113248,113932,112263,116756,115060,114433,112485,109810,111969,112274,108280,108875,108914,108602,110738,112386,109697,110698,110210,111130,112384,111058,114008,114480,115615,115324,115534,114865,116591,115705,117719,115858,115990,115414,112373,112653,113852,110464,109629,109382,110319,113713,113135,117451,119722,123057,121840,123257,125480,121550,123602,120275,118024,112143,114502,114684,112826,110392,108845,106644,106727,109192,110588,112562,108103,109969,110265,111418,113667,115527,115506,111158,107409,108886,110305,110196,106832,101292,103639,100995,101621,101640,103641,105334,103494,101442,100494,96971,95871,94298,93717,93331,89330,86956,85106,84499,86680,87081,87262,87806,91484,90778,90705,91422,84811,91499,92574,92163,88852,89683,90089,90007,93982,92453,90137,90480,90062,88692,86292,87491,86968,85917,88219,88125,88382,89270,87998,87329,87985,86941,87469,87861,87568,88455,87534,87945,90804,90001,91290,93420,92526,91506,90868,91140,90600,90872,91773,93324,97673,96698,94727,95317,95175,93271,90087,87858,89059,90424,89238,87772,87163,87801,89291,84972,82853,78903,77361,78946,75147,72445,66775,71020,68953,70520,70686,69791,66591,65486,69032,69856,68937,67982,67094,67127,66454,67130,68229,67520,64750,64107,68634,66808,65309,64933,65922,68932,68124,73206,70948,68121,67881,67112,68430,70669,70845,70336,71592,70710,71518,73941,74523,71625,69747,69559,70367,68803,70954,69099,70730,68460,65586,66745,66202,66820,67547,68274,66829,66891,67384,67306,69452,68729,71842,72331,73004,73133,71012,72146,74799,74240,74408,77596,75899,75181,75920,75559,78925,77843,77639,77333,77982,76759,76163,75105,76258,78549,78413,78762,80353,81425,81516,80180,80172,80801,81449,81940,80691,79596,81520,79245,78196,78035,76239,76767,77442,77238,76425,75407,76613,77540,75749,74921,73401,73330,73907,73552,71453,67201,65340,63922,59399,60496,62175,63452,61757,61812,63715,63691,64004,63694,66532,65598,64770,62712,63003,63785,63943,64571,62295,59378,59319,59578,60374,59559,60121,58555,60078,61741,62104,63197,62579,63722,63639,62241,63289,63871,64288,64037,61907,64560,64956,64051,63993,64407,64526,65239,66256,66023,64697,64119,64200,64633,64799,63646,64339,64769,63092,62652,63258,63758,64283,64691,64636,65062,65191,63875,63558,63424,63143,63022,63042,63171,64198,64759,67930,72788,77441,77285,77330,78571,78854,78459,80794,77736,78221,78816,79030,77283,77111,81414,79763,79943];
+
+function yearStartIndex(year){
+  const target = year + '-01-01';
+  const idx = FULL_DATES.findIndex(d => d >= target);
+  return idx === -1 ? FULL_DATES.length - 1 : idx;
+}
+
+let currentYear = 2017;
+let currentK = 3;
+let DATES = [];
+let PRICES = [];
+
+const START_CAPITAL = 10000;
+let lastTrades = [];
+let EQ = [];        // 最优操作资金曲线
+let HOLD_EQ = [];   // 持有不动资金曲线
+let mode = 'price';   // 'price' | 'capital'
+let scale = 'log';    // 'log' | 'linear'
+let hoverTradeIdx = null;
+
+let minLog = 0, maxLog = 1, minV = 0, maxV = 1, n = 0;
+
+function applyYear(year){
+  currentYear = year;
+  const idx = yearStartIndex(year);
+  DATES = FULL_DATES.slice(idx);
+  PRICES = FULL_PRICES.slice(idx);
+}
+
+// ---------- DP: best profit & trades for at most k transactions ----------
+function computeTrades(prices, k){
+  const n = prices.length;
+  if(n === 0 || k <= 0) return { profit:0, trades:[] };
+  const NEG = -Infinity;
+  const hold = [];
+  const cash = [];
+  const holdBuyDay = [];
+  const soldToday = [];
+  for(let i=0;i<=k;i++){
+    hold.push(new Float64Array(n).fill(NEG));
+    cash.push(new Float64Array(n).fill(0));
+    holdBuyDay.push(new Int32Array(n).fill(-1));
+    soldToday.push(new Uint8Array(n));
+  }
+
+  for(let i=1;i<=k;i++){
+    hold[i][0] = -prices[0];
+    holdBuyDay[i][0] = 0;
+    cash[i][0] = 0;
+    for(let j=1;j<n;j++){
+      const sellProfit = hold[i][j-1] + prices[j];
+      if(sellProfit > cash[i][j-1]){
+        cash[i][j] = sellProfit;
+        soldToday[i][j] = 1;
+      } else {
+        cash[i][j] = cash[i][j-1];
+        soldToday[i][j] = 0;
+      }
+      const buyProfit = cash[i-1][j-1] - prices[j];
+      if(buyProfit > hold[i][j-1]){
+        hold[i][j] = buyProfit;
+        holdBuyDay[i][j] = j;
+      } else {
+        hold[i][j] = hold[i][j-1];
+        holdBuyDay[i][j] = holdBuyDay[i][j-1];
+      }
+    }
+  }
+
+  const maxProfit = cash[k][n-1];
+
+  const trades = [];
+  let i = k, j = n-1;
+  while(i >= 1 && j >= 0){
+    if(soldToday[i][j]){
+      const sellDay = j;
+      const buyDay = holdBuyDay[i][j-1];
+      trades.push({ buyDay, sellDay });
+      i -= 1;
+      j = buyDay - 1;
+    } else {
+      j -= 1;
+    }
+  }
+  trades.reverse();
+  return { profit: maxProfit, trades };
+}
+
+// ---------- Helpers ----------
+const fmtUSD = (v, decimals=0) => '$' + Number(v).toLocaleString('en-US', {minimumFractionDigits:decimals, maximumFractionDigits:decimals});
+const fmtCompact = v => {
+  if(v >= 1e6) return '$' + (v/1e6).toFixed(2) + 'M';
+  if(v >= 1e4) return '$' + (v/1e3).toFixed(1) + 'K';
+  return '$' + Math.round(v).toLocaleString('en-US');
+};
+const fmtPct = (v, decimals=1) => (v>=0?'+':'-') + Math.abs(v).toLocaleString('en-US', {minimumFractionDigits:decimals, maximumFractionDigits:decimals}) + '%';
+const daysBetween = (d1, d2) => Math.round((new Date(d2) - new Date(d1)) / 86400000);
+const REDUCED = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function computeEquity(trades){
+  const len = PRICES.length;
+  const eq = new Array(len);
+  const sellAt = new Set(); trades.forEach(t=>sellAt.add(t.sellDay));
+  const buyAt = new Set();  trades.forEach(t=>buyAt.add(t.buyDay));
+  let capital = START_CAPITAL, inMkt = false, buyIdx = 0;
+  for(let i=0;i<len;i++){
+    if(inMkt && sellAt.has(i)){
+      capital = capital * PRICES[i] / PRICES[buyIdx];
+      inMkt = false;
+    }
+    if(buyAt.has(i)){ inMkt = true; buyIdx = i; }
+    eq[i] = inMkt ? capital * PRICES[i] / PRICES[buyIdx] : capital;
+  }
+  return eq;
+}
+
+function maxDrawdown(curve){
+  let peak = -Infinity, mdd = 0;
+  for(const v of curve){
+    if(v > peak) peak = v;
+    const dd = (peak - v) / peak;
+    if(dd > mdd) mdd = dd;
+  }
+  return mdd * 100;
+}
+
+function cagrOf(startV, endV, days){
+  const years = days / 365.25;
+  if(years <= 0 || startV <= 0 || endV <= 0) return 0;
+  return (Math.pow(endV/startV, 1/years) - 1) * 100;
+}
+
+function niceLogTicks(minP, maxP){
+  const ticks = [];
+  const startExp = Math.floor(Math.log10(minP));
+  const endExp = Math.ceil(Math.log10(maxP));
+  for(let e = startExp; e <= endExp; e++){
+    [1,2,5].forEach(m=>{
+      const v = m * Math.pow(10, e);
+      if(v >= minP*0.9 && v <= maxP*1.1) ticks.push(v);
+    });
+  }
+  return ticks;
+}
+
+function niceLinearTicks(lo, hi){
+  const span = hi - lo;
+  if(span <= 0) return [lo];
+  const raw = span / 5;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  let step = mag;
+  for(const m of [1,2,2.5,5,10]){ step = m*mag; if(span/step <= 5.5) break; }
+  const ticks = [];
+  for(let v = Math.ceil(lo/step)*step; v <= hi + 1e-9; v += step) ticks.push(v);
+  return ticks;
+}
+
+// ---------- Chart ----------
+const canvas = document.getElementById('priceChart');
+const cctx = canvas.getContext('2d');
+const tooltipEl = document.getElementById('chartTooltip');
+
+const PAD = { top: 18, right: 22, bottom: 34, left: 72 };
+function currentPad(){ return mode === 'capital' ? { ...PAD, right: 100 } : PAD; }
+
+function recomputeScales(){
+  n = PRICES.length;
+  const priceMin = Math.min(...PRICES), priceMax = Math.max(...PRICES);
+  if(mode === 'price'){
+    minV = priceMin; maxV = priceMax;
+  } else {
+    const all = EQ.concat(HOLD_EQ);
+    minV = Math.min(...all); maxV = Math.max(...all);
+  }
+  if(scale === 'linear'){
+    if(mode === 'capital'){ minV = 0; maxV = maxV * 1.10; }
+    else { const span = maxV - minV; minV = Math.max(0, minV - span*0.06); maxV = maxV + span*0.04; }
+  }
+  minLog = Math.log10(Math.max(minV, 1));
+  maxLog = Math.log10(Math.max(maxV, 1));
+}
+
+function layout(){
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const bw = Math.round(rect.width * dpr), bh = Math.round(rect.height * dpr);
+  if(canvas.width !== bw || canvas.height !== bh){ canvas.width = bw; canvas.height = bh; }
+  cctx.setTransform(dpr,0,0,dpr,0,0);
+  return { w: rect.width, h: rect.height };
+}
+
+function xForIndex(idx, w){
+  const P = currentPad();
+  return P.left + (idx/(n-1)) * (w - P.left - P.right);
+}
+function yForValue(v, h){
+  const P = currentPad();
+  const plotH = h - P.top - P.bottom;
+  let t;
+  if(scale === 'log') t = (Math.log10(Math.max(v,1)) - minLog) / ((maxLog - minLog) || 1);
+  else t = (v - minV) / ((maxV - minV) || 1);
+  return P.top + plotH - t * plotH;
+}
+function indexForX(px, w){
+  const P = currentPad();
+  const ratio = (px - P.left) / (w - P.left - P.right);
+  return Math.round(Math.min(Math.max(ratio,0),1) * (n-1));
+}
+
+function strokeCurve(arr, color, lw, w, h){
+  cctx.beginPath();
+  cctx.strokeStyle = color;
+  cctx.lineWidth = lw;
+  cctx.lineJoin = 'round';
+  cctx.moveTo(xForIndex(0,w), yForValue(arr[0],h));
+  for(let i=1;i<n;i++) cctx.lineTo(xForIndex(i,w), yForValue(arr[i],h));
+  cctx.stroke();
+}
+
+function fillUnder(arr, color, w, h){
+  const P = currentPad();
+  cctx.beginPath();
+  cctx.moveTo(xForIndex(0,w), h - P.bottom);
+  for(let i=0;i<n;i++) cctx.lineTo(xForIndex(i,w), yForValue(arr[i],h));
+  cctx.lineTo(xForIndex(n-1,w), h - P.bottom);
+  cctx.closePath();
+  cctx.fillStyle = color;
+  cctx.fill();
+}
+
+function drawEndLabels(w, h){
+  const P = currentPad();
+  const x = xForIndex(n-1, w) + 9;
+  let yS = Math.min(Math.max(yForValue(EQ[n-1],h), P.top+9), h-P.bottom-9);
+  let yH = Math.min(Math.max(yForValue(HOLD_EQ[n-1],h), P.top+9), h-P.bottom-9);
+  if(Math.abs(yS - yH) < 14){
+    const mid = (yS + yH) / 2;
+    if(yS <= yH){ yS = mid - 7; yH = mid + 7; } else { yS = mid + 7; yH = mid - 7; }
+  }
+  cctx.font = "700 11.5px 'Manrope','Noto Sans SC',sans-serif";
+  cctx.textAlign = 'left'; cctx.textBaseline = 'middle';
+  cctx.fillStyle = '#2E3A8C';
+  cctx.fillText(fmtCompact(EQ[n-1]), x, yS);
+  cctx.fillStyle = '#787E88';
+  cctx.fillText(fmtCompact(HOLD_EQ[n-1]), x, yH);
+}
+
+function drawChart(trades){
+  lastTrades = trades;
+  const { w, h } = layout();
+  const P = currentPad();
+  cctx.clearRect(0,0,w,h);
+  const plotH = h - P.top - P.bottom;
+
+  // gridlines + y labels
+  let ticks, tickFmt;
+  if(scale === 'log'){
+    ticks = niceLogTicks(minV, maxV);
+    tickFmt = v => v >= 1000 ? '$' + Math.round(v/1000) + 'k' : '$' + Math.round(v);
+  } else {
+    ticks = niceLinearTicks(minV, maxV);
+    tickFmt = fmtCompact;
+  }
+  cctx.lineWidth = 1;
+  cctx.font = "500 11px 'Manrope','Noto Sans SC',sans-serif";
+  cctx.textAlign = 'right'; cctx.textBaseline = 'middle';
+  ticks.forEach(t=>{
+    const y = yForValue(t, h);
+    cctx.strokeStyle = '#EFEFE9';
+    cctx.beginPath();
+    cctx.moveTo(P.left, y);
+    cctx.lineTo(w - P.right, y);
+    cctx.stroke();
+    cctx.fillStyle = '#9CA2AA';
+    cctx.fillText(tickFmt(t), P.left - 10, y);
+  });
+
+  // x labels (years) —— 窄屏时隔年显示，避免重叠
+  cctx.textAlign = 'center'; cctx.textBaseline = 'top';
+  const years = [];
+  DATES.forEach((d,idx)=>{
+    const y = d.slice(0,4);
+    if(!years.find(item=>item.year===y)) years.push({ year:y, idx });
+  });
+  const yearStep = (w - P.left - P.right) < 620 ? 2 : 1;
+  years.forEach(({year, idx}, yi)=>{
+    if(yi % yearStep !== 0) return;
+    cctx.fillStyle = '#9CA2AA';
+    cctx.fillText(year, xForIndex(idx, w), h - P.bottom + 10);
+  });
+
+  // highlight band (from trade-card hover)
+  if(hoverTradeIdx !== null && lastTrades[hoverTradeIdx]){
+    const t = lastTrades[hoverTradeIdx];
+    const x1 = xForIndex(t.buyDay, w), x2 = xForIndex(t.sellDay, w);
+    cctx.fillStyle = 'rgba(184,134,43,0.13)';
+    cctx.fillRect(x1, P.top, Math.max(x2 - x1, 2), plotH);
+  }
+
+  if(mode === 'price'){
+    // soft area under price
+    const grad = cctx.createLinearGradient(0, P.top, 0, h - P.bottom);
+    grad.addColorStop(0, 'rgba(46,58,140,0.10)');
+    grad.addColorStop(1, 'rgba(46,58,140,0)');
+    fillUnder(PRICES, grad, w, h);
+
+    // price line, colored by in-trade segments
+    const inTradeRange = (idx) => trades.some(t => idx >= t.buyDay && idx < t.sellDay);
+    let idx = 0;
+    while(idx < n-1){
+      const highlighted = inTradeRange(idx);
+      let j = idx;
+      while(j < n-1 && inTradeRange(j) === highlighted) j++;
+      cctx.beginPath();
+      cctx.strokeStyle = highlighted ? '#B8862B' : '#2E3A8C';
+      cctx.lineWidth = highlighted ? 2.6 : 1.5;
+      cctx.lineJoin = 'round';
+      cctx.moveTo(xForIndex(idx, w), yForValue(PRICES[idx], h));
+      for(let k2 = idx+1; k2 <= j; k2++){
+        cctx.lineTo(xForIndex(k2, w), yForValue(PRICES[k2], h));
+      }
+      cctx.stroke();
+      idx = j;
+    }
+
+    // buy/sell triangles
+    function triangle(px, py, size, up, fill){
+      cctx.beginPath();
+      if(up){
+        cctx.moveTo(px, py-size);
+        cctx.lineTo(px+size, py+size*0.8);
+        cctx.lineTo(px-size, py+size*0.8);
+      } else {
+        cctx.moveTo(px, py+size);
+        cctx.lineTo(px+size, py-size*0.8);
+        cctx.lineTo(px-size, py-size*0.8);
+      }
+      cctx.closePath();
+      cctx.fillStyle = fill;
+      cctx.fill();
+      cctx.strokeStyle = '#fff';
+      cctx.lineWidth = 1.5;
+      cctx.stroke();
+    }
+    trades.forEach((t, ti)=>{
+      const bx = xForIndex(t.buyDay, w), by = yForValue(PRICES[t.buyDay], h);
+      const sx = xForIndex(t.sellDay, w), sy = yForValue(PRICES[t.sellDay], h);
+      const big = hoverTradeIdx === ti;
+      if(big){
+        cctx.beginPath(); cctx.arc(bx, by, 11, 0, Math.PI*2);
+        cctx.fillStyle = 'rgba(47,110,84,0.18)'; cctx.fill();
+        cctx.beginPath(); cctx.arc(sx, sy, 11, 0, Math.PI*2);
+        cctx.fillStyle = 'rgba(184,134,43,0.18)'; cctx.fill();
+      }
+      triangle(bx, by, big?9:7, true, '#2F6E54');
+      triangle(sx, sy, big?9:7, false, '#B8862B');
+    });
+  } else {
+    // capital mode: holding bands
+    trades.forEach((t, ti)=>{
+      const x1 = xForIndex(t.buyDay, w), x2 = xForIndex(t.sellDay, w);
+      cctx.fillStyle = hoverTradeIdx === ti ? 'rgba(184,134,43,0.15)' : 'rgba(184,134,43,0.08)';
+      cctx.fillRect(x1, P.top, Math.max(x2 - x1, 1.5), plotH);
+    });
+
+    // hold curve (gray)
+    strokeCurve(HOLD_EQ, '#A9AEB6', 1.7, w, h);
+    // strategy curve (indigo) with soft fill
+    fillUnder(EQ, 'rgba(46,58,140,0.07)', w, h);
+    strokeCurve(EQ, '#2E3A8C', 2.4, w, h);
+
+    // end labels
+    drawEndLabels(w, h);
+
+    // buy/sell dots on strategy curve
+    trades.forEach((t, ti)=>{
+      const bx = xForIndex(t.buyDay, w), by = yForValue(EQ[t.buyDay], h);
+      const sx = xForIndex(t.sellDay, w), sy = yForValue(EQ[t.sellDay], h);
+      const r = hoverTradeIdx === ti ? 6 : 4.5;
+      cctx.beginPath(); cctx.arc(bx, by, r, 0, Math.PI*2);
+      cctx.fillStyle = '#2F6E54'; cctx.fill();
+      cctx.strokeStyle = '#fff'; cctx.lineWidth = 1.5; cctx.stroke();
+      cctx.beginPath(); cctx.arc(sx, sy, r, 0, Math.PI*2);
+      cctx.fillStyle = '#B8862B'; cctx.fill();
+      cctx.strokeStyle = '#fff'; cctx.lineWidth = 1.5; cctx.stroke();
+    });
+  }
+
+  // plot border
+  cctx.strokeStyle = '#E4E4DC';
+  cctx.lineWidth = 1;
+  cctx.strokeRect(P.left, P.top, w-P.left-P.right, plotH);
+}
+
+// tooltip + crosshair
+canvas.addEventListener('mousemove', (e)=>{
+  const rect = canvas.getBoundingClientRect();
+  const P = currentPad();
+  const px = e.clientX - rect.left;
+  if(px < P.left || px > rect.width - P.right){ tooltipEl.style.display='none'; drawChart(lastTrades); return; }
+  const idx = indexForX(px, rect.width);
+  drawChart(lastTrades);
+  const x = xForIndex(idx, rect.width);
+  const y = yForValue(mode==='price' ? PRICES[idx] : EQ[idx], rect.height);
+  cctx.beginPath();
+  cctx.strokeStyle = '#C4C8D2';
+  cctx.setLineDash([3,3]);
+  cctx.moveTo(x, P.top);
+  cctx.lineTo(x, rect.height - P.bottom);
+  cctx.stroke();
+  cctx.setLineDash([]);
+  cctx.beginPath();
+  cctx.arc(x, y, 4, 0, Math.PI*2);
+  cctx.fillStyle = '#16181D';
+  cctx.fill();
+
+  let html = `<div class="tt-date">${DATES[idx]}</div><div class="tt-row"><span>价格</span><b>$${PRICES[idx].toLocaleString('en-US')}</b></div>`;
+  if(mode === 'capital'){
+    html += `<div class="tt-row"><span>最优操作</span><b>${fmtUSD(EQ[idx])}</b></div>`
+          + `<div class="tt-row"><span>持有不动</span><b>${fmtUSD(HOLD_EQ[idx])}</b></div>`;
+  } else {
+    const isBuy = lastTrades.some(t=>t.buyDay===idx);
+    const isSell = lastTrades.some(t=>t.sellDay===idx);
+    if(isBuy || isSell) html += `<div class="tt-row"><span>信号</span><b>${isBuy?'买入点':'卖出点'}</b></div>`;
+  }
+  tooltipEl.innerHTML = html;
+  tooltipEl.style.display = 'block';
+  let left = x + 14;
+  if(left + 175 > rect.width) left = x - 189;
+  tooltipEl.style.left = left + 'px';
+  tooltipEl.style.top = Math.max(y - 60, 4) + 'px';
+});
+canvas.addEventListener('mouseleave', ()=>{
+  tooltipEl.style.display = 'none';
+  drawChart(lastTrades);
+});
+window.addEventListener('resize', ()=> drawChart(lastTrades));
+
+// ---------- Render: chart chrome ----------
+function renderChartUI(){
+  document.getElementById('chartTitle').textContent = mode === 'price' ? '价格走势' : '本金增长对比';
+  document.getElementById('chartSub').textContent = mode === 'price'
+    ? (scale === 'log' ? '纵轴为对数坐标，可切换为线性' : '纵轴为线性坐标，可切换为对数')
+    : '同样 $10,000 本金的资金曲线 · 金色底纹为持仓区间';
+  document.querySelectorAll('#modeToggle button').forEach(b=>b.classList.toggle('active', b.dataset.mode === mode));
+  document.querySelectorAll('#scaleToggle button').forEach(b=>b.classList.toggle('active', b.dataset.scale === scale));
+
+  const el = document.getElementById('chartLegend');
+  if(mode === 'price'){
+    el.innerHTML = `
+      <div class="item"><span class="legend-line" style="background:#2E3A8C;"></span>价格走势</div>
+      <div class="item"><span class="legend-line" style="background:#B8862B; height:4px;"></span>持仓中的区间</div>
+      <div class="item"><span class="legend-mark" style="background:#2F6E54; border-radius:50% 50% 0 0;"></span>买入点</div>
+      <div class="item"><span class="legend-mark" style="background:#B8862B; border-radius:0 0 50% 50%;"></span>卖出点</div>
+      <div class="item" style="color:#9CA2AA;">悬停交易卡片可定位</div>`;
+  } else {
+    el.innerHTML = `
+      <div class="item"><span class="legend-line" style="background:#2E3A8C; height:3.5px;"></span>最优操作资金</div>
+      <div class="item"><span class="legend-line" style="background:#A9AEB6;"></span>持有不动资金</div>
+      <div class="item"><span class="legend-band"></span>持仓区间</div>`;
+  }
+}
+
+// ---------- Animate numbers ----------
+function animateNumber(el, to, fmt){
+  const from = el._val ?? 0;
+  el._val = to;
+  if(REDUCED || from === to){ el.textContent = fmt(to); return; }
+  cancelAnimationFrame(el._raf);
+  const t0 = performance.now(), dur = 700;
+  const step = (t)=>{
+    const p = Math.min((t - t0) / dur, 1);
+    const e = 1 - Math.pow(1 - p, 3);
+    el.textContent = fmt(from + (to - from) * e);
+    if(p < 1) el._raf = requestAnimationFrame(step);
+  };
+  el._raf = requestAnimationFrame(step);
+}
+
+// ---------- Render: compare ----------
+function renderCompare(){
+  const holdFinal = HOLD_EQ[n-1];
+  const stratFinal = EQ[n-1];
+  const startPrice = PRICES[0], endPrice = PRICES[n-1];
+  const days = Math.max(daysBetween(DATES[0], DATES[n-1]), 1);
+
+  const holdMult = endPrice / startPrice;
+  const stratMult = stratFinal / START_CAPITAL;
+  const beatMult = stratFinal / holdFinal;
+  const diff = stratFinal - holdFinal;
+  const holdMdd = maxDrawdown(HOLD_EQ);
+  const stratMdd = maxDrawdown(EQ);
+
+  document.getElementById('compareMeta').textContent =
+    `${DATES[0]} 至 ${DATES[n-1]} · 共 ${days.toLocaleString('en-US')} 天 · 初始本金 ${fmtUSD(START_CAPITAL)}`;
+
+  const badge = document.getElementById('compareBadge');
+  if(diff < 1){
+    badge.innerHTML = `<span>两种做法结果接近</span>`;
+  } else {
+    badge.innerHTML = `<span>领先持有不动</span><b>${beatMult >= 100 ? Math.round(beatMult) : beatMult.toFixed(1)}×</b>`;
+  }
+
+  animateNumber(document.getElementById('holdValue'), holdFinal, fmtUSD);
+  animateNumber(document.getElementById('stratValue'), stratFinal, fmtUSD);
+  document.getElementById('holdMult').textContent = holdMult.toFixed(1) + '×';
+  document.getElementById('stratMult').textContent = (stratMult >= 100 ? Math.round(stratMult) : stratMult.toFixed(1)) + '×';
+
+  document.getElementById('holdSub').textContent =
+    `收益率 ${fmtPct((holdMult-1)*100)} · 年化 ${cagrOf(START_CAPITAL, holdFinal, days).toFixed(1)}% · 最大回撤 -${holdMdd.toFixed(1)}%`;
+  document.getElementById('stratNote').textContent =
+    `${lastTrades.length} 次精准买卖 · 空仓期间资金不产生收益`;
+  document.getElementById('stratSub').textContent =
+    `收益率 ${fmtPct((stratMult-1)*100)} · 年化 ${cagrOf(START_CAPITAL, stratFinal, days).toFixed(1)}% · 最大回撤 -${stratMdd.toFixed(1)}%`;
+
+  document.getElementById('stratBar').style.width = '100%';
+  document.getElementById('holdBar').style.width = Math.max(holdFinal / stratFinal * 100, 1.5) + '%';
+
+  const foot = document.getElementById('compareFoot');
+  if(diff < 1){
+    foot.innerHTML = `当前区间内没有更优的交易机会，操作与持有不动的结果基本一致。可以调整起始年份或交易次数再试。`;
+  } else {
+    foot.innerHTML = `同样起步于 ${fmtUSD(START_CAPITAL)}，<b>什么都不做</b>最终变成 <b>${fmtUSD(holdFinal)}</b>；而在同一行情里低买高卖 <b>${lastTrades.length}</b> 次，最终变成 <b>${fmtUSD(stratFinal)}</b> —— 多赚 <b>${fmtUSD(diff)}</b>，相当于把持有不动的结果放大了 <b>${beatMult >= 100 ? Math.round(beatMult) : beatMult.toFixed(1)} 倍</b>。切换上方图表到「资金曲线对比」可以直观看到两条曲线的差距。`;
+  }
+}
+
+// ---------- Render: stats ----------
+function renderStats(){
+  const days = Math.max(daysBetween(DATES[0], DATES[n-1]), 1);
+  const holdCagr = cagrOf(START_CAPITAL, HOLD_EQ[n-1], days);
+  const stratCagr = cagrOf(START_CAPITAL, EQ[n-1], days);
+  const stratMdd = maxDrawdown(EQ);
+  const holdMdd = maxDrawdown(HOLD_EQ);
+
+  let heldDays = 0;
+  lastTrades.forEach(t=> heldDays += (t.sellDay - t.buyDay));
+  const heldPct = (heldDays / Math.max(n-1,1) * 100);
+  const avgDays = lastTrades.length ? Math.round(heldDays / lastTrades.length) : 0;
+  let bestGain = 0;
+  lastTrades.forEach(t=>{ bestGain = Math.max(bestGain, (PRICES[t.sellDay]/PRICES[t.buyDay]-1)*100); });
+
+  const el = document.getElementById('statsStrip');
+  el.innerHTML = `
+    <div class="stat-block">
+      <div class="stat-label">年化收益（操作后）</div>
+      <div class="stat-value gold">${stratCagr.toFixed(1)}%</div>
+      <div class="stat-foot">持有不动同期 ${holdCagr.toFixed(1)}%</div>
+    </div>
+    <div class="stat-block">
+      <div class="stat-label">最大回撤（操作后）</div>
+      <div class="stat-value indigo">-${stratMdd.toFixed(1)}%</div>
+      <div class="stat-foot">${stratMdd < holdMdd - 1 ? `持有不动 -${holdMdd.toFixed(1)}%，择时避开了更深的下跌` : `持有不动 -${holdMdd.toFixed(1)}%，回撤幅度接近`}</div>
+    </div>
+    <div class="stat-block">
+      <div class="stat-label">实际持仓时间</div>
+      <div class="stat-value">${heldPct.toFixed(0)}%</div>
+      <div class="stat-foot">共 ${heldDays} 天在场内，其余空仓等待</div>
+    </div>
+    <div class="stat-block">
+      <div class="stat-label">交易节奏</div>
+      <div class="stat-value green">${lastTrades.length} 组</div>
+      <div class="stat-foot">平均持有 ${avgDays} 天 · 最佳单笔 ${fmtPct(bestGain)}</div>
+    </div>
+  `;
+}
+
+// ---------- Render: trades ----------
+function renderTrades(trades){
+  const list = document.getElementById('tradesList');
+  document.getElementById('tradesCount').textContent = trades.length
+    ? `共 ${trades.length} 组买卖 · 悬停卡片可在图中定位`
+    : '';
+
+  if(trades.length === 0){
+    list.innerHTML = `<div class="empty-tip">当前次数下没有找到有利可图的交易机会。</div>`;
+    return;
+  }
+
+  list.innerHTML = trades.map((t, idx) => {
+    const buyDate = DATES[t.buyDay];
+    const sellDate = DATES[t.sellDay];
+    const buyPrice = PRICES[t.buyDay];
+    const sellPrice = PRICES[t.sellDay];
+    const gainPct = (sellPrice/buyPrice - 1) * 100;
+    const days = t.sellDay - t.buyDay;
+    return `
+      <div class="trade-card" data-idx="${idx}">
+        <div class="trade-index">${String(idx+1).padStart(2,'0')}</div>
+        <div class="trade-side">
+          <span class="tag buy">买入</span>
+          <div class="date">${buyDate}</div>
+          <div class="price">$${buyPrice.toLocaleString('en-US')}</div>
+        </div>
+        <div class="trade-arrow">→</div>
+        <div class="trade-side">
+          <span class="tag sell">卖出</span>
+          <div class="date">${sellDate}</div>
+          <div class="price">$${sellPrice.toLocaleString('en-US')}</div>
+        </div>
+        <div class="trade-gain">
+          <div class="pct">${fmtPct(gainPct)}</div>
+          <div class="days">持有 ${days} 天</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  list.querySelectorAll('.trade-card').forEach(card=>{
+    card.addEventListener('mouseenter', ()=>{
+      hoverTradeIdx = Number(card.dataset.idx);
+      drawChart(lastTrades);
+    });
+    card.addEventListener('mouseleave', ()=>{
+      hoverTradeIdx = null;
+      drawChart(lastTrades);
+    });
+  });
+}
+
+// ---------- Render: hero ----------
+function renderHero(){
+  const startPrice = PRICES[0];
+  const endPrice = PRICES[PRICES.length-1];
+  const multiple = endPrice / startPrice;
+  const days = Math.max(daysBetween(DATES[0], DATES[n-1]), 1);
+  document.getElementById('heroFrom').textContent = '$' + startPrice.toLocaleString('en-US');
+  document.getElementById('heroTo').textContent = '$' + endPrice.toLocaleString('en-US');
+  document.getElementById('heroSub').innerHTML =
+    `${DATES[0]} 至 ${DATES[n-1]}，价格上涨 <strong>${multiple.toFixed(1)} 倍</strong><span class="cagr">（年化 ${cagrOf(startPrice, endPrice, days).toFixed(1)}%）</span>。以下工具会在所选区间内寻找收益最优的买卖组合，并与「什么都不做」的结果对比。`;
+  document.getElementById('eyebrowText').textContent =
+    `比特币每日价格 · ${DATES[0]} 至 ${DATES[n-1]}`;
+}
+
+// ---------- Controls sync ----------
+function paintSlider(){
+  const slider = document.getElementById('kSlider');
+  const min = Number(slider.min), max = Number(slider.max);
+  const pct = (currentK - min) / (max - min) * 100;
+  slider.style.background = `linear-gradient(90deg, var(--indigo) 0%, var(--indigo) ${pct}%, var(--hairline-2) ${pct}%, var(--hairline-2) 100%)`;
+}
+
+function update(k){
+  currentK = k;
+  // 页面假设「每次卖出后资金再全部投入（复利）」，复利最优 = 最大化各段收益率乘积
+  // = 最大化 log 收益之和，因此在 log 价格空间跑同一个加法 DP
+  const logPrices = PRICES.map(p => Math.log(p));
+  const { trades } = computeTrades(logPrices, k);
+  lastTrades = trades;
+  hoverTradeIdx = null;
+  EQ = computeEquity(trades);
+  HOLD_EQ = PRICES.map(p => START_CAPITAL * p / PRICES[0]);
+  recomputeScales();
+  renderHero();
+  renderChartUI();
+  drawChart(trades);
+  renderCompare();
+  renderStats();
+  renderTrades(trades);
+
+  document.getElementById('kSlider').value = k;
+  document.getElementById('kValueDisplay').innerHTML = `${k}<span class="unit">次</span>`;
+  paintSlider();
+  document.querySelectorAll('#chipGroup .chip').forEach(chip=>{
+    chip.classList.toggle('active', Number(chip.dataset.k) === k);
+  });
+}
+
+function selectYear(year){
+  applyYear(year);
+  document.querySelectorAll('#yearChipGroup .chip').forEach(chip=>{
+    chip.classList.toggle('active', Number(chip.dataset.year) === year);
+  });
+  update(currentK);
+}
+
+function setMode(m){
+  if(mode === m) return;
+  mode = m;
+  scale = m === 'capital' ? 'linear' : 'log';
+  recomputeScales();
+  renderChartUI();
+  drawChart(lastTrades);
+}
+function setScale(s){
+  if(scale === s) return;
+  scale = s;
+  recomputeScales();
+  renderChartUI();
+  drawChart(lastTrades);
+}
+
+// ---------- Init ----------
+function init(){
+  const yearValues = [2017,2018,2019,2020,2021,2022,2023,2024,2025,2026];
+  const yearChipGroup = document.getElementById('yearChipGroup');
+  yearChipGroup.innerHTML = yearValues.map(y=>`<button class="chip${y===currentYear?' active':''}" data-year="${y}">${y} 年</button>`).join('');
+  yearChipGroup.querySelectorAll('.chip').forEach(chip=>{
+    chip.addEventListener('click', ()=> selectYear(Number(chip.dataset.year)));
+  });
+
+  const chipValues = [1,2,3,4,5,8,10];
+  const chipGroup = document.getElementById('chipGroup');
+  chipGroup.innerHTML = chipValues.map(v=>`<button class="chip${v===currentK?' active':''}" data-k="${v}">${v} 次</button>`).join('');
+  chipGroup.querySelectorAll('.chip').forEach(chip=>{
+    chip.addEventListener('click', ()=> update(Number(chip.dataset.k)));
+  });
+
+  const slider = document.getElementById('kSlider');
+  slider.addEventListener('input', (e)=> update(Number(e.target.value)));
+
+  document.querySelectorAll('#modeToggle button').forEach(btn=>{
+    btn.addEventListener('click', ()=> setMode(btn.dataset.mode));
+  });
+  document.querySelectorAll('#scaleToggle button').forEach(btn=>{
+    btn.addEventListener('click', ()=> setScale(btn.dataset.scale));
+  });
+
+  // reveal on scroll
+  if('IntersectionObserver' in window){
+    const io = new IntersectionObserver(entries=>{
+      entries.forEach(en=>{
+        if(en.isIntersecting){ en.target.classList.add('in'); io.unobserve(en.target); }
+      });
+    }, { threshold: 0.06 });
+    document.querySelectorAll('.reveal').forEach(el=> io.observe(el));
+  } else {
+    document.querySelectorAll('.reveal').forEach(el=> el.classList.add('in'));
+  }
+
+  applyYear(currentYear);
+  update(currentK);
+}
+
+init();
+</script>
+</body>
+</html>
