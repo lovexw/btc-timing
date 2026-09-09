@@ -15,7 +15,7 @@
 
 浏览器直接打开 `index.html` 即可，无需构建。
 
-在线版：见 Cloudflare Pages 部署地址。
+在线版：[https://btc-timing.pages.dev](https://btc-timing.pages.dev)
 
 ## 说明
 
